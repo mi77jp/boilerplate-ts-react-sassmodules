@@ -1,10 +1,19 @@
 {
   "compilerOptions": {
-    "outDir": "dist/",
-    "noImplicitAny": true,
-    "module": "commonjs",
-    "target": "es2015",
-    "jsx": "react"
+    "target": "es5",
+     "allowUnreachableCode": false,
+     "allowUnusedLabels": false,
+     "alwaysStrict": true,
+     "noImplicitAny": true,
+     "noImplicitReturns": true,
+     "noImplicitThis":
+     "noUnusedLocals": true,
+     "noUnusedParameters": true,
+     "strictNullChecks": true,
+     "pretty": true,
+     "noEmitHelpers": true,
+     "importHelpers": true,
+     "jsx": "react"
   },
   "include": [
     "./src/**/*"

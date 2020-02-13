@@ -50,7 +50,7 @@ module.exports = {
     contentBase: path.resolve(__dirname, 'dist'),
     host: "0.0.0.0",
     disableHostCheck: true,
-    port: 3000,
+    port: 4946,
     open: true,
     hot: true
   }
