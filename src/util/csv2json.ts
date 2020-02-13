@@ -1,4 +1,4 @@
-const csv2json = (str: String) => {
+export const csv2json = (str: String) => {
   const delimiter = ",";
   return str.split("\n").reduce((table, row) => {
     if (!table) return;

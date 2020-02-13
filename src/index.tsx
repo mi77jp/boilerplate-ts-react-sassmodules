@@ -2,13 +2,13 @@ import "core-js";
 import "regenerator-runtime/runtime";
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { Provider } from 'react-redux';
-import store from './store';
+import { Provider as ReduxProvider  } from 'react-redux';
+import store from './modules/store';
 import App from './app';
 
 ReactDOM.render(
-  <Provider store={store}>
+  <ReduxProvider store={store}>
     <App />
-  </Provider>,
+  </ReduxProvider>,
   document.getElementById("app") as HTMLElement
 );

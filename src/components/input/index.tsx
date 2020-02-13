@@ -1,10 +1,10 @@
 import * as React from 'react';
 import { Actions } from '../../containers/stage';
-import {State} from '../../states/states';
+import { State } from '../../states/states';
 
 type Props = State & Actions;
 
-export const Component: React.SFC<Props> = (props: Props) => {
+export const InputComponent: React.SFC<Props> = (props: Props) => {
   return (
     <div>
       <input
