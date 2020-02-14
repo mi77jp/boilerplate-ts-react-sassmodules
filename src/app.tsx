@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { HashRouter, Route, Switch, Redirect } from 'react-router-dom';
 import Stage from './containers/stage';
+import Button from './components/button';
 
 const styles = require('./styles/app.scss');
 
@@ -13,8 +14,8 @@ export default class App extends React.Component {
             <Route path='/' exact>
               <Stage />
             </Route>
-            <Route path='/result'>
-              ...Result
+            <Route path='/result/:number'>
+              <Button />
             </Route>
             <Redirect to={'/'} />
           </Switch>

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Actions } from '../../containers/stage';
-import { State } from '../../states/states';
+import { State } from '../../modules/states';
 
 type Props = State & Actions;
 
