@@ -8,6 +8,7 @@ import { csv2json } from './util/csv2json';
 
 const Q_URL = "./data/q.csv";
 //const A_URL = "./data/a.csv";
+
 const App: any = () => {
 
   // load data
