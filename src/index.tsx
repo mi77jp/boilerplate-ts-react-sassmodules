@@ -7,7 +7,7 @@ import { csv2json } from './util/csv2json';
 import { Question } from './components/question';
 const styles = require('./styles/app.scss');
 
-const Q_URL = "./data/q.csv";
+const Q_URL = "./q.csv";
 
 const App: any = () => {
 

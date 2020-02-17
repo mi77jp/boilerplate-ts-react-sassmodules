@@ -3,6 +3,7 @@
 SASS modules (CSS-modules with sass)を typescript + reactの環境で使用する。
 
 ***
+DEMO: <https://mi77jp.github.io/boilerplate-ts-react-sassmodules/dist/>
 
 <img width="563" alt="ScreenShot 2020-02-17 19 24 17" src="https://user-images.githubusercontent.com/1215350/74645361-1c139100-51bb-11ea-9558-ffbc07ae5c60.png">
 
@@ -10,9 +11,19 @@ SASS modules (CSS-modules with sass)を typescript + reactの環境で使用す�
 
 ## つかいかた
 
-```unix
+準備
+```
 $ yarn
+```
+
+ローカルサーバーでみる
+```
 $ yarn run dev
+```
+
+ビルドする
+```
+$ yarn run build
 ```
 
 ## CSS関係のライブラリ
