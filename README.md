@@ -88,7 +88,7 @@ sass変数を書く、以後sass側でimportして使用する。
 #### 2-2. グローバルなスタイル
 
 <https://github.com/mi77jp/boilerplate-ts-react-sassmodules/blob/master/src/styles/app.scss>   
-アプリ全体に適用したい style を `.app` の下に書く。（`.app`は仮の名前なのでなんでもよい。） もしもここに `.app` でなく、 `<hr>,<a>,<h3>` などのセレクターを直接上書きする指定を書いてしまうとグローバル汚染になるので避ける。
+アプリ全体に適用したい style を `.app` の下に書く。（`.app`は仮の名前なのでなんでもよい。） もしもここに `.app` 下でなく、 `<hr>,<a>,<h3>` などのセレクターを直接上書きする指定を書いてしまうとグローバル汚染になるので避ける。
 
 <https://github.com/mi77jp/boilerplate-ts-react-sassmodules/blob/master/src/index.tsx#L8>  
 エントリーポイントのtsxにsassを読み込む
