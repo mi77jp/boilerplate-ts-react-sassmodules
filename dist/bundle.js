@@ -86,6 +86,1881 @@
 /************************************************************************/
 /******/ ({
 
+/***/ "./node_modules/axios/index.js":
+/*!*************************************!*\
+  !*** ./node_modules/axios/index.js ***!
+  \*************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+module.exports = __webpack_require__(/*! ./lib/axios */ "./node_modules/axios/lib/axios.js");
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/adapters/xhr.js":
+/*!************************************************!*\
+  !*** ./node_modules/axios/lib/adapters/xhr.js ***!
+  \************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var utils = __webpack_require__(/*! ./../utils */ "./node_modules/axios/lib/utils.js");
+var settle = __webpack_require__(/*! ./../core/settle */ "./node_modules/axios/lib/core/settle.js");
+var buildURL = __webpack_require__(/*! ./../helpers/buildURL */ "./node_modules/axios/lib/helpers/buildURL.js");
+var buildFullPath = __webpack_require__(/*! ../core/buildFullPath */ "./node_modules/axios/lib/core/buildFullPath.js");
+var parseHeaders = __webpack_require__(/*! ./../helpers/parseHeaders */ "./node_modules/axios/lib/helpers/parseHeaders.js");
+var isURLSameOrigin = __webpack_require__(/*! ./../helpers/isURLSameOrigin */ "./node_modules/axios/lib/helpers/isURLSameOrigin.js");
+var createError = __webpack_require__(/*! ../core/createError */ "./node_modules/axios/lib/core/createError.js");
+
+module.exports = function xhrAdapter(config) {
+  return new Promise(function dispatchXhrRequest(resolve, reject) {
+    var requestData = config.data;
+    var requestHeaders = config.headers;
+
+    if (utils.isFormData(requestData)) {
+      delete requestHeaders['Content-Type']; // Let the browser set it
+    }
+
+    var request = new XMLHttpRequest();
+
+    // HTTP basic authentication
+    if (config.auth) {
+      var username = config.auth.username || '';
+      var password = config.auth.password || '';
+      requestHeaders.Authorization = 'Basic ' + btoa(username + ':' + password);
+    }
+
+    var fullPath = buildFullPath(config.baseURL, config.url);
+    request.open(config.method.toUpperCase(), buildURL(fullPath, config.params, config.paramsSerializer), true);
+
+    // Set the request timeout in MS
+    request.timeout = config.timeout;
+
+    // Listen for ready state
+    request.onreadystatechange = function handleLoad() {
+      if (!request || request.readyState !== 4) {
+        return;
+      }
+
+      // The request errored out and we didn't get a response, this will be
+      // handled by onerror instead
+      // With one exception: request that using file: protocol, most browsers
+      // will return status as 0 even though it's a successful request
+      if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
+        return;
+      }
+
+      // Prepare the response
+      var responseHeaders = 'getAllResponseHeaders' in request ? parseHeaders(request.getAllResponseHeaders()) : null;
+      var responseData = !config.responseType || config.responseType === 'text' ? request.responseText : request.response;
+      var response = {
+        data: responseData,
+        status: request.status,
+        statusText: request.statusText,
+        headers: responseHeaders,
+        config: config,
+        request: request
+      };
+
+      settle(resolve, reject, response);
+
+      // Clean up request
+      request = null;
+    };
+
+    // Handle browser request cancellation (as opposed to a manual cancellation)
+    request.onabort = function handleAbort() {
+      if (!request) {
+        return;
+      }
+
+      reject(createError('Request aborted', config, 'ECONNABORTED', request));
+
+      // Clean up request
+      request = null;
+    };
+
+    // Handle low level network errors
+    request.onerror = function handleError() {
+      // Real errors are hidden from us by the browser
+      // onerror should only fire if it's a network error
+      reject(createError('Network Error', config, null, request));
+
+      // Clean up request
+      request = null;
+    };
+
+    // Handle timeout
+    request.ontimeout = function handleTimeout() {
+      var timeoutErrorMessage = 'timeout of ' + config.timeout + 'ms exceeded';
+      if (config.timeoutErrorMessage) {
+        timeoutErrorMessage = config.timeoutErrorMessage;
+      }
+      reject(createError(timeoutErrorMessage, config, 'ECONNABORTED',
+        request));
+
+      // Clean up request
+      request = null;
+    };
+
+    // Add xsrf header
+    // This is only done if running in a standard browser environment.
+    // Specifically not if we're in a web worker, or react-native.
+    if (utils.isStandardBrowserEnv()) {
+      var cookies = __webpack_require__(/*! ./../helpers/cookies */ "./node_modules/axios/lib/helpers/cookies.js");
+
+      // Add xsrf header
+      var xsrfValue = (config.withCredentials || isURLSameOrigin(fullPath)) && config.xsrfCookieName ?
+        cookies.read(config.xsrfCookieName) :
+        undefined;
+
+      if (xsrfValue) {
+        requestHeaders[config.xsrfHeaderName] = xsrfValue;
+      }
+    }
+
+    // Add headers to the request
+    if ('setRequestHeader' in request) {
+      utils.forEach(requestHeaders, function setRequestHeader(val, key) {
+        if (typeof requestData === 'undefined' && key.toLowerCase() === 'content-type') {
+          // Remove Content-Type if data is undefined
+          delete requestHeaders[key];
+        } else {
+          // Otherwise add header to the request
+          request.setRequestHeader(key, val);
+        }
+      });
+    }
+
+    // Add withCredentials to request if needed
+    if (!utils.isUndefined(config.withCredentials)) {
+      request.withCredentials = !!config.withCredentials;
+    }
+
+    // Add responseType to request if needed
+    if (config.responseType) {
+      try {
+        request.responseType = config.responseType;
+      } catch (e) {
+        // Expected DOMException thrown by browsers not compatible XMLHttpRequest Level 2.
+        // But, this can be suppressed for 'json' type as it can be parsed by default 'transformResponse' function.
+        if (config.responseType !== 'json') {
+          throw e;
+        }
+      }
+    }
+
+    // Handle progress if needed
+    if (typeof config.onDownloadProgress === 'function') {
+      request.addEventListener('progress', config.onDownloadProgress);
+    }
+
+    // Not all browsers support upload events
+    if (typeof config.onUploadProgress === 'function' && request.upload) {
+      request.upload.addEventListener('progress', config.onUploadProgress);
+    }
+
+    if (config.cancelToken) {
+      // Handle cancellation
+      config.cancelToken.promise.then(function onCanceled(cancel) {
+        if (!request) {
+          return;
+        }
+
+        request.abort();
+        reject(cancel);
+        // Clean up request
+        request = null;
+      });
+    }
+
+    if (requestData === undefined) {
+      requestData = null;
+    }
+
+    // Send the request
+    request.send(requestData);
+  });
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/axios.js":
+/*!*****************************************!*\
+  !*** ./node_modules/axios/lib/axios.js ***!
+  \*****************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var utils = __webpack_require__(/*! ./utils */ "./node_modules/axios/lib/utils.js");
+var bind = __webpack_require__(/*! ./helpers/bind */ "./node_modules/axios/lib/helpers/bind.js");
+var Axios = __webpack_require__(/*! ./core/Axios */ "./node_modules/axios/lib/core/Axios.js");
+var mergeConfig = __webpack_require__(/*! ./core/mergeConfig */ "./node_modules/axios/lib/core/mergeConfig.js");
+var defaults = __webpack_require__(/*! ./defaults */ "./node_modules/axios/lib/defaults.js");
+
+/**
+ * Create an instance of Axios
+ *
+ * @param {Object} defaultConfig The default config for the instance
+ * @return {Axios} A new instance of Axios
+ */
+function createInstance(defaultConfig) {
+  var context = new Axios(defaultConfig);
+  var instance = bind(Axios.prototype.request, context);
+
+  // Copy axios.prototype to instance
+  utils.extend(instance, Axios.prototype, context);
+
+  // Copy context to instance
+  utils.extend(instance, context);
+
+  return instance;
+}
+
+// Create the default instance to be exported
+var axios = createInstance(defaults);
+
+// Expose Axios class to allow class inheritance
+axios.Axios = Axios;
+
+// Factory for creating new instances
+axios.create = function create(instanceConfig) {
+  return createInstance(mergeConfig(axios.defaults, instanceConfig));
+};
+
+// Expose Cancel & CancelToken
+axios.Cancel = __webpack_require__(/*! ./cancel/Cancel */ "./node_modules/axios/lib/cancel/Cancel.js");
+axios.CancelToken = __webpack_require__(/*! ./cancel/CancelToken */ "./node_modules/axios/lib/cancel/CancelToken.js");
+axios.isCancel = __webpack_require__(/*! ./cancel/isCancel */ "./node_modules/axios/lib/cancel/isCancel.js");
+
+// Expose all/spread
+axios.all = function all(promises) {
+  return Promise.all(promises);
+};
+axios.spread = __webpack_require__(/*! ./helpers/spread */ "./node_modules/axios/lib/helpers/spread.js");
+
+module.exports = axios;
+
+// Allow use of default import syntax in TypeScript
+module.exports.default = axios;
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/cancel/Cancel.js":
+/*!*************************************************!*\
+  !*** ./node_modules/axios/lib/cancel/Cancel.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * A `Cancel` is an object that is thrown when an operation is canceled.
+ *
+ * @class
+ * @param {string=} message The message.
+ */
+function Cancel(message) {
+  this.message = message;
+}
+
+Cancel.prototype.toString = function toString() {
+  return 'Cancel' + (this.message ? ': ' + this.message : '');
+};
+
+Cancel.prototype.__CANCEL__ = true;
+
+module.exports = Cancel;
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/cancel/CancelToken.js":
+/*!******************************************************!*\
+  !*** ./node_modules/axios/lib/cancel/CancelToken.js ***!
+  \******************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var Cancel = __webpack_require__(/*! ./Cancel */ "./node_modules/axios/lib/cancel/Cancel.js");
+
+/**
+ * A `CancelToken` is an object that can be used to request cancellation of an operation.
+ *
+ * @class
+ * @param {Function} executor The executor function.
+ */
+function CancelToken(executor) {
+  if (typeof executor !== 'function') {
+    throw new TypeError('executor must be a function.');
+  }
+
+  var resolvePromise;
+  this.promise = new Promise(function promiseExecutor(resolve) {
+    resolvePromise = resolve;
+  });
+
+  var token = this;
+  executor(function cancel(message) {
+    if (token.reason) {
+      // Cancellation has already been requested
+      return;
+    }
+
+    token.reason = new Cancel(message);
+    resolvePromise(token.reason);
+  });
+}
+
+/**
+ * Throws a `Cancel` if cancellation has been requested.
+ */
+CancelToken.prototype.throwIfRequested = function throwIfRequested() {
+  if (this.reason) {
+    throw this.reason;
+  }
+};
+
+/**
+ * Returns an object that contains a new `CancelToken` and a function that, when called,
+ * cancels the `CancelToken`.
+ */
+CancelToken.source = function source() {
+  var cancel;
+  var token = new CancelToken(function executor(c) {
+    cancel = c;
+  });
+  return {
+    token: token,
+    cancel: cancel
+  };
+};
+
+module.exports = CancelToken;
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/cancel/isCancel.js":
+/*!***************************************************!*\
+  !*** ./node_modules/axios/lib/cancel/isCancel.js ***!
+  \***************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+module.exports = function isCancel(value) {
+  return !!(value && value.__CANCEL__);
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/core/Axios.js":
+/*!**********************************************!*\
+  !*** ./node_modules/axios/lib/core/Axios.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var utils = __webpack_require__(/*! ./../utils */ "./node_modules/axios/lib/utils.js");
+var buildURL = __webpack_require__(/*! ../helpers/buildURL */ "./node_modules/axios/lib/helpers/buildURL.js");
+var InterceptorManager = __webpack_require__(/*! ./InterceptorManager */ "./node_modules/axios/lib/core/InterceptorManager.js");
+var dispatchRequest = __webpack_require__(/*! ./dispatchRequest */ "./node_modules/axios/lib/core/dispatchRequest.js");
+var mergeConfig = __webpack_require__(/*! ./mergeConfig */ "./node_modules/axios/lib/core/mergeConfig.js");
+
+/**
+ * Create a new instance of Axios
+ *
+ * @param {Object} instanceConfig The default config for the instance
+ */
+function Axios(instanceConfig) {
+  this.defaults = instanceConfig;
+  this.interceptors = {
+    request: new InterceptorManager(),
+    response: new InterceptorManager()
+  };
+}
+
+/**
+ * Dispatch a request
+ *
+ * @param {Object} config The config specific for this request (merged with this.defaults)
+ */
+Axios.prototype.request = function request(config) {
+  /*eslint no-param-reassign:0*/
+  // Allow for axios('example/url'[, config]) a la fetch API
+  if (typeof config === 'string') {
+    config = arguments[1] || {};
+    config.url = arguments[0];
+  } else {
+    config = config || {};
+  }
+
+  config = mergeConfig(this.defaults, config);
+
+  // Set config.method
+  if (config.method) {
+    config.method = config.method.toLowerCase();
+  } else if (this.defaults.method) {
+    config.method = this.defaults.method.toLowerCase();
+  } else {
+    config.method = 'get';
+  }
+
+  // Hook up interceptors middleware
+  var chain = [dispatchRequest, undefined];
+  var promise = Promise.resolve(config);
+
+  this.interceptors.request.forEach(function unshiftRequestInterceptors(interceptor) {
+    chain.unshift(interceptor.fulfilled, interceptor.rejected);
+  });
+
+  this.interceptors.response.forEach(function pushResponseInterceptors(interceptor) {
+    chain.push(interceptor.fulfilled, interceptor.rejected);
+  });
+
+  while (chain.length) {
+    promise = promise.then(chain.shift(), chain.shift());
+  }
+
+  return promise;
+};
+
+Axios.prototype.getUri = function getUri(config) {
+  config = mergeConfig(this.defaults, config);
+  return buildURL(config.url, config.params, config.paramsSerializer).replace(/^\?/, '');
+};
+
+// Provide aliases for supported request methods
+utils.forEach(['delete', 'get', 'head', 'options'], function forEachMethodNoData(method) {
+  /*eslint func-names:0*/
+  Axios.prototype[method] = function(url, config) {
+    return this.request(utils.merge(config || {}, {
+      method: method,
+      url: url
+    }));
+  };
+});
+
+utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
+  /*eslint func-names:0*/
+  Axios.prototype[method] = function(url, data, config) {
+    return this.request(utils.merge(config || {}, {
+      method: method,
+      url: url,
+      data: data
+    }));
+  };
+});
+
+module.exports = Axios;
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/core/InterceptorManager.js":
+/*!***********************************************************!*\
+  !*** ./node_modules/axios/lib/core/InterceptorManager.js ***!
+  \***********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var utils = __webpack_require__(/*! ./../utils */ "./node_modules/axios/lib/utils.js");
+
+function InterceptorManager() {
+  this.handlers = [];
+}
+
+/**
+ * Add a new interceptor to the stack
+ *
+ * @param {Function} fulfilled The function to handle `then` for a `Promise`
+ * @param {Function} rejected The function to handle `reject` for a `Promise`
+ *
+ * @return {Number} An ID used to remove interceptor later
+ */
+InterceptorManager.prototype.use = function use(fulfilled, rejected) {
+  this.handlers.push({
+    fulfilled: fulfilled,
+    rejected: rejected
+  });
+  return this.handlers.length - 1;
+};
+
+/**
+ * Remove an interceptor from the stack
+ *
+ * @param {Number} id The ID that was returned by `use`
+ */
+InterceptorManager.prototype.eject = function eject(id) {
+  if (this.handlers[id]) {
+    this.handlers[id] = null;
+  }
+};
+
+/**
+ * Iterate over all the registered interceptors
+ *
+ * This method is particularly useful for skipping over any
+ * interceptors that may have become `null` calling `eject`.
+ *
+ * @param {Function} fn The function to call for each interceptor
+ */
+InterceptorManager.prototype.forEach = function forEach(fn) {
+  utils.forEach(this.handlers, function forEachHandler(h) {
+    if (h !== null) {
+      fn(h);
+    }
+  });
+};
+
+module.exports = InterceptorManager;
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/core/buildFullPath.js":
+/*!******************************************************!*\
+  !*** ./node_modules/axios/lib/core/buildFullPath.js ***!
+  \******************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var isAbsoluteURL = __webpack_require__(/*! ../helpers/isAbsoluteURL */ "./node_modules/axios/lib/helpers/isAbsoluteURL.js");
+var combineURLs = __webpack_require__(/*! ../helpers/combineURLs */ "./node_modules/axios/lib/helpers/combineURLs.js");
+
+/**
+ * Creates a new URL by combining the baseURL with the requestedURL,
+ * only when the requestedURL is not already an absolute URL.
+ * If the requestURL is absolute, this function returns the requestedURL untouched.
+ *
+ * @param {string} baseURL The base URL
+ * @param {string} requestedURL Absolute or relative URL to combine
+ * @returns {string} The combined full path
+ */
+module.exports = function buildFullPath(baseURL, requestedURL) {
+  if (baseURL && !isAbsoluteURL(requestedURL)) {
+    return combineURLs(baseURL, requestedURL);
+  }
+  return requestedURL;
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/core/createError.js":
+/*!****************************************************!*\
+  !*** ./node_modules/axios/lib/core/createError.js ***!
+  \****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var enhanceError = __webpack_require__(/*! ./enhanceError */ "./node_modules/axios/lib/core/enhanceError.js");
+
+/**
+ * Create an Error with the specified message, config, error code, request and response.
+ *
+ * @param {string} message The error message.
+ * @param {Object} config The config.
+ * @param {string} [code] The error code (for example, 'ECONNABORTED').
+ * @param {Object} [request] The request.
+ * @param {Object} [response] The response.
+ * @returns {Error} The created error.
+ */
+module.exports = function createError(message, config, code, request, response) {
+  var error = new Error(message);
+  return enhanceError(error, config, code, request, response);
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/core/dispatchRequest.js":
+/*!********************************************************!*\
+  !*** ./node_modules/axios/lib/core/dispatchRequest.js ***!
+  \********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var utils = __webpack_require__(/*! ./../utils */ "./node_modules/axios/lib/utils.js");
+var transformData = __webpack_require__(/*! ./transformData */ "./node_modules/axios/lib/core/transformData.js");
+var isCancel = __webpack_require__(/*! ../cancel/isCancel */ "./node_modules/axios/lib/cancel/isCancel.js");
+var defaults = __webpack_require__(/*! ../defaults */ "./node_modules/axios/lib/defaults.js");
+
+/**
+ * Throws a `Cancel` if cancellation has been requested.
+ */
+function throwIfCancellationRequested(config) {
+  if (config.cancelToken) {
+    config.cancelToken.throwIfRequested();
+  }
+}
+
+/**
+ * Dispatch a request to the server using the configured adapter.
+ *
+ * @param {object} config The config that is to be used for the request
+ * @returns {Promise} The Promise to be fulfilled
+ */
+module.exports = function dispatchRequest(config) {
+  throwIfCancellationRequested(config);
+
+  // Ensure headers exist
+  config.headers = config.headers || {};
+
+  // Transform request data
+  config.data = transformData(
+    config.data,
+    config.headers,
+    config.transformRequest
+  );
+
+  // Flatten headers
+  config.headers = utils.merge(
+    config.headers.common || {},
+    config.headers[config.method] || {},
+    config.headers
+  );
+
+  utils.forEach(
+    ['delete', 'get', 'head', 'post', 'put', 'patch', 'common'],
+    function cleanHeaderConfig(method) {
+      delete config.headers[method];
+    }
+  );
+
+  var adapter = config.adapter || defaults.adapter;
+
+  return adapter(config).then(function onAdapterResolution(response) {
+    throwIfCancellationRequested(config);
+
+    // Transform response data
+    response.data = transformData(
+      response.data,
+      response.headers,
+      config.transformResponse
+    );
+
+    return response;
+  }, function onAdapterRejection(reason) {
+    if (!isCancel(reason)) {
+      throwIfCancellationRequested(config);
+
+      // Transform response data
+      if (reason && reason.response) {
+        reason.response.data = transformData(
+          reason.response.data,
+          reason.response.headers,
+          config.transformResponse
+        );
+      }
+    }
+
+    return Promise.reject(reason);
+  });
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/core/enhanceError.js":
+/*!*****************************************************!*\
+  !*** ./node_modules/axios/lib/core/enhanceError.js ***!
+  \*****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * Update an Error with the specified config, error code, and response.
+ *
+ * @param {Error} error The error to update.
+ * @param {Object} config The config.
+ * @param {string} [code] The error code (for example, 'ECONNABORTED').
+ * @param {Object} [request] The request.
+ * @param {Object} [response] The response.
+ * @returns {Error} The error.
+ */
+module.exports = function enhanceError(error, config, code, request, response) {
+  error.config = config;
+  if (code) {
+    error.code = code;
+  }
+
+  error.request = request;
+  error.response = response;
+  error.isAxiosError = true;
+
+  error.toJSON = function() {
+    return {
+      // Standard
+      message: this.message,
+      name: this.name,
+      // Microsoft
+      description: this.description,
+      number: this.number,
+      // Mozilla
+      fileName: this.fileName,
+      lineNumber: this.lineNumber,
+      columnNumber: this.columnNumber,
+      stack: this.stack,
+      // Axios
+      config: this.config,
+      code: this.code
+    };
+  };
+  return error;
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/core/mergeConfig.js":
+/*!****************************************************!*\
+  !*** ./node_modules/axios/lib/core/mergeConfig.js ***!
+  \****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var utils = __webpack_require__(/*! ../utils */ "./node_modules/axios/lib/utils.js");
+
+/**
+ * Config-specific merge-function which creates a new config-object
+ * by merging two configuration objects together.
+ *
+ * @param {Object} config1
+ * @param {Object} config2
+ * @returns {Object} New object resulting from merging config2 to config1
+ */
+module.exports = function mergeConfig(config1, config2) {
+  // eslint-disable-next-line no-param-reassign
+  config2 = config2 || {};
+  var config = {};
+
+  var valueFromConfig2Keys = ['url', 'method', 'params', 'data'];
+  var mergeDeepPropertiesKeys = ['headers', 'auth', 'proxy'];
+  var defaultToConfig2Keys = [
+    'baseURL', 'url', 'transformRequest', 'transformResponse', 'paramsSerializer',
+    'timeout', 'withCredentials', 'adapter', 'responseType', 'xsrfCookieName',
+    'xsrfHeaderName', 'onUploadProgress', 'onDownloadProgress',
+    'maxContentLength', 'validateStatus', 'maxRedirects', 'httpAgent',
+    'httpsAgent', 'cancelToken', 'socketPath'
+  ];
+
+  utils.forEach(valueFromConfig2Keys, function valueFromConfig2(prop) {
+    if (typeof config2[prop] !== 'undefined') {
+      config[prop] = config2[prop];
+    }
+  });
+
+  utils.forEach(mergeDeepPropertiesKeys, function mergeDeepProperties(prop) {
+    if (utils.isObject(config2[prop])) {
+      config[prop] = utils.deepMerge(config1[prop], config2[prop]);
+    } else if (typeof config2[prop] !== 'undefined') {
+      config[prop] = config2[prop];
+    } else if (utils.isObject(config1[prop])) {
+      config[prop] = utils.deepMerge(config1[prop]);
+    } else if (typeof config1[prop] !== 'undefined') {
+      config[prop] = config1[prop];
+    }
+  });
+
+  utils.forEach(defaultToConfig2Keys, function defaultToConfig2(prop) {
+    if (typeof config2[prop] !== 'undefined') {
+      config[prop] = config2[prop];
+    } else if (typeof config1[prop] !== 'undefined') {
+      config[prop] = config1[prop];
+    }
+  });
+
+  var axiosKeys = valueFromConfig2Keys
+    .concat(mergeDeepPropertiesKeys)
+    .concat(defaultToConfig2Keys);
+
+  var otherKeys = Object
+    .keys(config2)
+    .filter(function filterAxiosKeys(key) {
+      return axiosKeys.indexOf(key) === -1;
+    });
+
+  utils.forEach(otherKeys, function otherKeysDefaultToConfig2(prop) {
+    if (typeof config2[prop] !== 'undefined') {
+      config[prop] = config2[prop];
+    } else if (typeof config1[prop] !== 'undefined') {
+      config[prop] = config1[prop];
+    }
+  });
+
+  return config;
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/core/settle.js":
+/*!***********************************************!*\
+  !*** ./node_modules/axios/lib/core/settle.js ***!
+  \***********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var createError = __webpack_require__(/*! ./createError */ "./node_modules/axios/lib/core/createError.js");
+
+/**
+ * Resolve or reject a Promise based on response status.
+ *
+ * @param {Function} resolve A function that resolves the promise.
+ * @param {Function} reject A function that rejects the promise.
+ * @param {object} response The response.
+ */
+module.exports = function settle(resolve, reject, response) {
+  var validateStatus = response.config.validateStatus;
+  if (!validateStatus || validateStatus(response.status)) {
+    resolve(response);
+  } else {
+    reject(createError(
+      'Request failed with status code ' + response.status,
+      response.config,
+      null,
+      response.request,
+      response
+    ));
+  }
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/core/transformData.js":
+/*!******************************************************!*\
+  !*** ./node_modules/axios/lib/core/transformData.js ***!
+  \******************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var utils = __webpack_require__(/*! ./../utils */ "./node_modules/axios/lib/utils.js");
+
+/**
+ * Transform the data for a request or a response
+ *
+ * @param {Object|String} data The data to be transformed
+ * @param {Array} headers The headers for the request or response
+ * @param {Array|Function} fns A single function or Array of functions
+ * @returns {*} The resulting transformed data
+ */
+module.exports = function transformData(data, headers, fns) {
+  /*eslint no-param-reassign:0*/
+  utils.forEach(fns, function transform(fn) {
+    data = fn(data, headers);
+  });
+
+  return data;
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/defaults.js":
+/*!********************************************!*\
+  !*** ./node_modules/axios/lib/defaults.js ***!
+  \********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+/* WEBPACK VAR INJECTION */(function(process) {
+
+var utils = __webpack_require__(/*! ./utils */ "./node_modules/axios/lib/utils.js");
+var normalizeHeaderName = __webpack_require__(/*! ./helpers/normalizeHeaderName */ "./node_modules/axios/lib/helpers/normalizeHeaderName.js");
+
+var DEFAULT_CONTENT_TYPE = {
+  'Content-Type': 'application/x-www-form-urlencoded'
+};
+
+function setContentTypeIfUnset(headers, value) {
+  if (!utils.isUndefined(headers) && utils.isUndefined(headers['Content-Type'])) {
+    headers['Content-Type'] = value;
+  }
+}
+
+function getDefaultAdapter() {
+  var adapter;
+  if (typeof XMLHttpRequest !== 'undefined') {
+    // For browsers use XHR adapter
+    adapter = __webpack_require__(/*! ./adapters/xhr */ "./node_modules/axios/lib/adapters/xhr.js");
+  } else if (typeof process !== 'undefined' && Object.prototype.toString.call(process) === '[object process]') {
+    // For node use HTTP adapter
+    adapter = __webpack_require__(/*! ./adapters/http */ "./node_modules/axios/lib/adapters/xhr.js");
+  }
+  return adapter;
+}
+
+var defaults = {
+  adapter: getDefaultAdapter(),
+
+  transformRequest: [function transformRequest(data, headers) {
+    normalizeHeaderName(headers, 'Accept');
+    normalizeHeaderName(headers, 'Content-Type');
+    if (utils.isFormData(data) ||
+      utils.isArrayBuffer(data) ||
+      utils.isBuffer(data) ||
+      utils.isStream(data) ||
+      utils.isFile(data) ||
+      utils.isBlob(data)
+    ) {
+      return data;
+    }
+    if (utils.isArrayBufferView(data)) {
+      return data.buffer;
+    }
+    if (utils.isURLSearchParams(data)) {
+      setContentTypeIfUnset(headers, 'application/x-www-form-urlencoded;charset=utf-8');
+      return data.toString();
+    }
+    if (utils.isObject(data)) {
+      setContentTypeIfUnset(headers, 'application/json;charset=utf-8');
+      return JSON.stringify(data);
+    }
+    return data;
+  }],
+
+  transformResponse: [function transformResponse(data) {
+    /*eslint no-param-reassign:0*/
+    if (typeof data === 'string') {
+      try {
+        data = JSON.parse(data);
+      } catch (e) { /* Ignore */ }
+    }
+    return data;
+  }],
+
+  /**
+   * A timeout in milliseconds to abort a request. If set to 0 (default) a
+   * timeout is not created.
+   */
+  timeout: 0,
+
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
+
+  maxContentLength: -1,
+
+  validateStatus: function validateStatus(status) {
+    return status >= 200 && status < 300;
+  }
+};
+
+defaults.headers = {
+  common: {
+    'Accept': 'application/json, text/plain, */*'
+  }
+};
+
+utils.forEach(['delete', 'get', 'head'], function forEachMethodNoData(method) {
+  defaults.headers[method] = {};
+});
+
+utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
+  defaults.headers[method] = utils.merge(DEFAULT_CONTENT_TYPE);
+});
+
+module.exports = defaults;
+
+/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../../process/browser.js */ "./node_modules/process/browser.js")))
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/helpers/bind.js":
+/*!************************************************!*\
+  !*** ./node_modules/axios/lib/helpers/bind.js ***!
+  \************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+module.exports = function bind(fn, thisArg) {
+  return function wrap() {
+    var args = new Array(arguments.length);
+    for (var i = 0; i < args.length; i++) {
+      args[i] = arguments[i];
+    }
+    return fn.apply(thisArg, args);
+  };
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/helpers/buildURL.js":
+/*!****************************************************!*\
+  !*** ./node_modules/axios/lib/helpers/buildURL.js ***!
+  \****************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var utils = __webpack_require__(/*! ./../utils */ "./node_modules/axios/lib/utils.js");
+
+function encode(val) {
+  return encodeURIComponent(val).
+    replace(/%40/gi, '@').
+    replace(/%3A/gi, ':').
+    replace(/%24/g, '$').
+    replace(/%2C/gi, ',').
+    replace(/%20/g, '+').
+    replace(/%5B/gi, '[').
+    replace(/%5D/gi, ']');
+}
+
+/**
+ * Build a URL by appending params to the end
+ *
+ * @param {string} url The base of the url (e.g., http://www.google.com)
+ * @param {object} [params] The params to be appended
+ * @returns {string} The formatted url
+ */
+module.exports = function buildURL(url, params, paramsSerializer) {
+  /*eslint no-param-reassign:0*/
+  if (!params) {
+    return url;
+  }
+
+  var serializedParams;
+  if (paramsSerializer) {
+    serializedParams = paramsSerializer(params);
+  } else if (utils.isURLSearchParams(params)) {
+    serializedParams = params.toString();
+  } else {
+    var parts = [];
+
+    utils.forEach(params, function serialize(val, key) {
+      if (val === null || typeof val === 'undefined') {
+        return;
+      }
+
+      if (utils.isArray(val)) {
+        key = key + '[]';
+      } else {
+        val = [val];
+      }
+
+      utils.forEach(val, function parseValue(v) {
+        if (utils.isDate(v)) {
+          v = v.toISOString();
+        } else if (utils.isObject(v)) {
+          v = JSON.stringify(v);
+        }
+        parts.push(encode(key) + '=' + encode(v));
+      });
+    });
+
+    serializedParams = parts.join('&');
+  }
+
+  if (serializedParams) {
+    var hashmarkIndex = url.indexOf('#');
+    if (hashmarkIndex !== -1) {
+      url = url.slice(0, hashmarkIndex);
+    }
+
+    url += (url.indexOf('?') === -1 ? '?' : '&') + serializedParams;
+  }
+
+  return url;
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/helpers/combineURLs.js":
+/*!*******************************************************!*\
+  !*** ./node_modules/axios/lib/helpers/combineURLs.js ***!
+  \*******************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * Creates a new URL by combining the specified URLs
+ *
+ * @param {string} baseURL The base URL
+ * @param {string} relativeURL The relative URL
+ * @returns {string} The combined URL
+ */
+module.exports = function combineURLs(baseURL, relativeURL) {
+  return relativeURL
+    ? baseURL.replace(/\/+$/, '') + '/' + relativeURL.replace(/^\/+/, '')
+    : baseURL;
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/helpers/cookies.js":
+/*!***************************************************!*\
+  !*** ./node_modules/axios/lib/helpers/cookies.js ***!
+  \***************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var utils = __webpack_require__(/*! ./../utils */ "./node_modules/axios/lib/utils.js");
+
+module.exports = (
+  utils.isStandardBrowserEnv() ?
+
+  // Standard browser envs support document.cookie
+    (function standardBrowserEnv() {
+      return {
+        write: function write(name, value, expires, path, domain, secure) {
+          var cookie = [];
+          cookie.push(name + '=' + encodeURIComponent(value));
+
+          if (utils.isNumber(expires)) {
+            cookie.push('expires=' + new Date(expires).toGMTString());
+          }
+
+          if (utils.isString(path)) {
+            cookie.push('path=' + path);
+          }
+
+          if (utils.isString(domain)) {
+            cookie.push('domain=' + domain);
+          }
+
+          if (secure === true) {
+            cookie.push('secure');
+          }
+
+          document.cookie = cookie.join('; ');
+        },
+
+        read: function read(name) {
+          var match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+          return (match ? decodeURIComponent(match[3]) : null);
+        },
+
+        remove: function remove(name) {
+          this.write(name, '', Date.now() - 86400000);
+        }
+      };
+    })() :
+
+  // Non standard browser env (web workers, react-native) lack needed support.
+    (function nonStandardBrowserEnv() {
+      return {
+        write: function write() {},
+        read: function read() { return null; },
+        remove: function remove() {}
+      };
+    })()
+);
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/helpers/isAbsoluteURL.js":
+/*!*********************************************************!*\
+  !*** ./node_modules/axios/lib/helpers/isAbsoluteURL.js ***!
+  \*********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * Determines whether the specified URL is absolute
+ *
+ * @param {string} url The URL to test
+ * @returns {boolean} True if the specified URL is absolute, otherwise false
+ */
+module.exports = function isAbsoluteURL(url) {
+  // A URL is considered absolute if it begins with "<scheme>://" or "//" (protocol-relative URL).
+  // RFC 3986 defines scheme name as a sequence of characters beginning with a letter and followed
+  // by any combination of letters, digits, plus, period, or hyphen.
+  return /^([a-z][a-z\d\+\-\.]*:)?\/\//i.test(url);
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/helpers/isURLSameOrigin.js":
+/*!***********************************************************!*\
+  !*** ./node_modules/axios/lib/helpers/isURLSameOrigin.js ***!
+  \***********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var utils = __webpack_require__(/*! ./../utils */ "./node_modules/axios/lib/utils.js");
+
+module.exports = (
+  utils.isStandardBrowserEnv() ?
+
+  // Standard browser envs have full support of the APIs needed to test
+  // whether the request URL is of the same origin as current location.
+    (function standardBrowserEnv() {
+      var msie = /(msie|trident)/i.test(navigator.userAgent);
+      var urlParsingNode = document.createElement('a');
+      var originURL;
+
+      /**
+    * Parse a URL to discover it's components
+    *
+    * @param {String} url The URL to be parsed
+    * @returns {Object}
+    */
+      function resolveURL(url) {
+        var href = url;
+
+        if (msie) {
+        // IE needs attribute set twice to normalize properties
+          urlParsingNode.setAttribute('href', href);
+          href = urlParsingNode.href;
+        }
+
+        urlParsingNode.setAttribute('href', href);
+
+        // urlParsingNode provides the UrlUtils interface - http://url.spec.whatwg.org/#urlutils
+        return {
+          href: urlParsingNode.href,
+          protocol: urlParsingNode.protocol ? urlParsingNode.protocol.replace(/:$/, '') : '',
+          host: urlParsingNode.host,
+          search: urlParsingNode.search ? urlParsingNode.search.replace(/^\?/, '') : '',
+          hash: urlParsingNode.hash ? urlParsingNode.hash.replace(/^#/, '') : '',
+          hostname: urlParsingNode.hostname,
+          port: urlParsingNode.port,
+          pathname: (urlParsingNode.pathname.charAt(0) === '/') ?
+            urlParsingNode.pathname :
+            '/' + urlParsingNode.pathname
+        };
+      }
+
+      originURL = resolveURL(window.location.href);
+
+      /**
+    * Determine if a URL shares the same origin as the current location
+    *
+    * @param {String} requestURL The URL to test
+    * @returns {boolean} True if URL shares the same origin, otherwise false
+    */
+      return function isURLSameOrigin(requestURL) {
+        var parsed = (utils.isString(requestURL)) ? resolveURL(requestURL) : requestURL;
+        return (parsed.protocol === originURL.protocol &&
+            parsed.host === originURL.host);
+      };
+    })() :
+
+  // Non standard browser envs (web workers, react-native) lack needed support.
+    (function nonStandardBrowserEnv() {
+      return function isURLSameOrigin() {
+        return true;
+      };
+    })()
+);
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/helpers/normalizeHeaderName.js":
+/*!***************************************************************!*\
+  !*** ./node_modules/axios/lib/helpers/normalizeHeaderName.js ***!
+  \***************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var utils = __webpack_require__(/*! ../utils */ "./node_modules/axios/lib/utils.js");
+
+module.exports = function normalizeHeaderName(headers, normalizedName) {
+  utils.forEach(headers, function processHeader(value, name) {
+    if (name !== normalizedName && name.toUpperCase() === normalizedName.toUpperCase()) {
+      headers[normalizedName] = value;
+      delete headers[name];
+    }
+  });
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/helpers/parseHeaders.js":
+/*!********************************************************!*\
+  !*** ./node_modules/axios/lib/helpers/parseHeaders.js ***!
+  \********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var utils = __webpack_require__(/*! ./../utils */ "./node_modules/axios/lib/utils.js");
+
+// Headers whose duplicates are ignored by node
+// c.f. https://nodejs.org/api/http.html#http_message_headers
+var ignoreDuplicateOf = [
+  'age', 'authorization', 'content-length', 'content-type', 'etag',
+  'expires', 'from', 'host', 'if-modified-since', 'if-unmodified-since',
+  'last-modified', 'location', 'max-forwards', 'proxy-authorization',
+  'referer', 'retry-after', 'user-agent'
+];
+
+/**
+ * Parse headers into an object
+ *
+ * ```
+ * Date: Wed, 27 Aug 2014 08:58:49 GMT
+ * Content-Type: application/json
+ * Connection: keep-alive
+ * Transfer-Encoding: chunked
+ * ```
+ *
+ * @param {String} headers Headers needing to be parsed
+ * @returns {Object} Headers parsed into an object
+ */
+module.exports = function parseHeaders(headers) {
+  var parsed = {};
+  var key;
+  var val;
+  var i;
+
+  if (!headers) { return parsed; }
+
+  utils.forEach(headers.split('\n'), function parser(line) {
+    i = line.indexOf(':');
+    key = utils.trim(line.substr(0, i)).toLowerCase();
+    val = utils.trim(line.substr(i + 1));
+
+    if (key) {
+      if (parsed[key] && ignoreDuplicateOf.indexOf(key) >= 0) {
+        return;
+      }
+      if (key === 'set-cookie') {
+        parsed[key] = (parsed[key] ? parsed[key] : []).concat([val]);
+      } else {
+        parsed[key] = parsed[key] ? parsed[key] + ', ' + val : val;
+      }
+    }
+  });
+
+  return parsed;
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/helpers/spread.js":
+/*!**************************************************!*\
+  !*** ./node_modules/axios/lib/helpers/spread.js ***!
+  \**************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/**
+ * Syntactic sugar for invoking a function and expanding an array for arguments.
+ *
+ * Common use case would be to use `Function.prototype.apply`.
+ *
+ *  ```js
+ *  function f(x, y, z) {}
+ *  var args = [1, 2, 3];
+ *  f.apply(null, args);
+ *  ```
+ *
+ * With `spread` this example can be re-written.
+ *
+ *  ```js
+ *  spread(function(x, y, z) {})([1, 2, 3]);
+ *  ```
+ *
+ * @param {Function} callback
+ * @returns {Function}
+ */
+module.exports = function spread(callback) {
+  return function wrap(arr) {
+    return callback.apply(null, arr);
+  };
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/axios/lib/utils.js":
+/*!*****************************************!*\
+  !*** ./node_modules/axios/lib/utils.js ***!
+  \*****************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var bind = __webpack_require__(/*! ./helpers/bind */ "./node_modules/axios/lib/helpers/bind.js");
+
+/*global toString:true*/
+
+// utils is a library of generic helper functions non-specific to axios
+
+var toString = Object.prototype.toString;
+
+/**
+ * Determine if a value is an Array
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an Array, otherwise false
+ */
+function isArray(val) {
+  return toString.call(val) === '[object Array]';
+}
+
+/**
+ * Determine if a value is undefined
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if the value is undefined, otherwise false
+ */
+function isUndefined(val) {
+  return typeof val === 'undefined';
+}
+
+/**
+ * Determine if a value is a Buffer
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Buffer, otherwise false
+ */
+function isBuffer(val) {
+  return val !== null && !isUndefined(val) && val.constructor !== null && !isUndefined(val.constructor)
+    && typeof val.constructor.isBuffer === 'function' && val.constructor.isBuffer(val);
+}
+
+/**
+ * Determine if a value is an ArrayBuffer
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an ArrayBuffer, otherwise false
+ */
+function isArrayBuffer(val) {
+  return toString.call(val) === '[object ArrayBuffer]';
+}
+
+/**
+ * Determine if a value is a FormData
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an FormData, otherwise false
+ */
+function isFormData(val) {
+  return (typeof FormData !== 'undefined') && (val instanceof FormData);
+}
+
+/**
+ * Determine if a value is a view on an ArrayBuffer
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a view on an ArrayBuffer, otherwise false
+ */
+function isArrayBufferView(val) {
+  var result;
+  if ((typeof ArrayBuffer !== 'undefined') && (ArrayBuffer.isView)) {
+    result = ArrayBuffer.isView(val);
+  } else {
+    result = (val) && (val.buffer) && (val.buffer instanceof ArrayBuffer);
+  }
+  return result;
+}
+
+/**
+ * Determine if a value is a String
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a String, otherwise false
+ */
+function isString(val) {
+  return typeof val === 'string';
+}
+
+/**
+ * Determine if a value is a Number
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Number, otherwise false
+ */
+function isNumber(val) {
+  return typeof val === 'number';
+}
+
+/**
+ * Determine if a value is an Object
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an Object, otherwise false
+ */
+function isObject(val) {
+  return val !== null && typeof val === 'object';
+}
+
+/**
+ * Determine if a value is a Date
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Date, otherwise false
+ */
+function isDate(val) {
+  return toString.call(val) === '[object Date]';
+}
+
+/**
+ * Determine if a value is a File
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a File, otherwise false
+ */
+function isFile(val) {
+  return toString.call(val) === '[object File]';
+}
+
+/**
+ * Determine if a value is a Blob
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Blob, otherwise false
+ */
+function isBlob(val) {
+  return toString.call(val) === '[object Blob]';
+}
+
+/**
+ * Determine if a value is a Function
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Function, otherwise false
+ */
+function isFunction(val) {
+  return toString.call(val) === '[object Function]';
+}
+
+/**
+ * Determine if a value is a Stream
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Stream, otherwise false
+ */
+function isStream(val) {
+  return isObject(val) && isFunction(val.pipe);
+}
+
+/**
+ * Determine if a value is a URLSearchParams object
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a URLSearchParams object, otherwise false
+ */
+function isURLSearchParams(val) {
+  return typeof URLSearchParams !== 'undefined' && val instanceof URLSearchParams;
+}
+
+/**
+ * Trim excess whitespace off the beginning and end of a string
+ *
+ * @param {String} str The String to trim
+ * @returns {String} The String freed of excess whitespace
+ */
+function trim(str) {
+  return str.replace(/^\s*/, '').replace(/\s*$/, '');
+}
+
+/**
+ * Determine if we're running in a standard browser environment
+ *
+ * This allows axios to run in a web worker, and react-native.
+ * Both environments support XMLHttpRequest, but not fully standard globals.
+ *
+ * web workers:
+ *  typeof window -> undefined
+ *  typeof document -> undefined
+ *
+ * react-native:
+ *  navigator.product -> 'ReactNative'
+ * nativescript
+ *  navigator.product -> 'NativeScript' or 'NS'
+ */
+function isStandardBrowserEnv() {
+  if (typeof navigator !== 'undefined' && (navigator.product === 'ReactNative' ||
+                                           navigator.product === 'NativeScript' ||
+                                           navigator.product === 'NS')) {
+    return false;
+  }
+  return (
+    typeof window !== 'undefined' &&
+    typeof document !== 'undefined'
+  );
+}
+
+/**
+ * Iterate over an Array or an Object invoking a function for each item.
+ *
+ * If `obj` is an Array callback will be called passing
+ * the value, index, and complete array for each item.
+ *
+ * If 'obj' is an Object callback will be called passing
+ * the value, key, and complete object for each property.
+ *
+ * @param {Object|Array} obj The object to iterate
+ * @param {Function} fn The callback to invoke for each item
+ */
+function forEach(obj, fn) {
+  // Don't bother if no value provided
+  if (obj === null || typeof obj === 'undefined') {
+    return;
+  }
+
+  // Force an array if not already something iterable
+  if (typeof obj !== 'object') {
+    /*eslint no-param-reassign:0*/
+    obj = [obj];
+  }
+
+  if (isArray(obj)) {
+    // Iterate over array values
+    for (var i = 0, l = obj.length; i < l; i++) {
+      fn.call(null, obj[i], i, obj);
+    }
+  } else {
+    // Iterate over object keys
+    for (var key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        fn.call(null, obj[key], key, obj);
+      }
+    }
+  }
+}
+
+/**
+ * Accepts varargs expecting each argument to be an object, then
+ * immutably merges the properties of each object and returns result.
+ *
+ * When multiple objects contain the same key the later object in
+ * the arguments list will take precedence.
+ *
+ * Example:
+ *
+ * ```js
+ * var result = merge({foo: 123}, {foo: 456});
+ * console.log(result.foo); // outputs 456
+ * ```
+ *
+ * @param {Object} obj1 Object to merge
+ * @returns {Object} Result of all merge properties
+ */
+function merge(/* obj1, obj2, obj3, ... */) {
+  var result = {};
+  function assignValue(val, key) {
+    if (typeof result[key] === 'object' && typeof val === 'object') {
+      result[key] = merge(result[key], val);
+    } else {
+      result[key] = val;
+    }
+  }
+
+  for (var i = 0, l = arguments.length; i < l; i++) {
+    forEach(arguments[i], assignValue);
+  }
+  return result;
+}
+
+/**
+ * Function equal to merge with the difference being that no reference
+ * to original objects is kept.
+ *
+ * @see merge
+ * @param {Object} obj1 Object to merge
+ * @returns {Object} Result of all merge properties
+ */
+function deepMerge(/* obj1, obj2, obj3, ... */) {
+  var result = {};
+  function assignValue(val, key) {
+    if (typeof result[key] === 'object' && typeof val === 'object') {
+      result[key] = deepMerge(result[key], val);
+    } else if (typeof val === 'object') {
+      result[key] = deepMerge({}, val);
+    } else {
+      result[key] = val;
+    }
+  }
+
+  for (var i = 0, l = arguments.length; i < l; i++) {
+    forEach(arguments[i], assignValue);
+  }
+  return result;
+}
+
+/**
+ * Extends object a by mutably adding to it the properties of object b.
+ *
+ * @param {Object} a The object to be extended
+ * @param {Object} b The object to copy properties from
+ * @param {Object} thisArg The object to bind function to
+ * @return {Object} The resulting value of object a
+ */
+function extend(a, b, thisArg) {
+  forEach(b, function assignValue(val, key) {
+    if (thisArg && typeof val === 'function') {
+      a[key] = bind(val, thisArg);
+    } else {
+      a[key] = val;
+    }
+  });
+  return a;
+}
+
+module.exports = {
+  isArray: isArray,
+  isArrayBuffer: isArrayBuffer,
+  isBuffer: isBuffer,
+  isFormData: isFormData,
+  isArrayBufferView: isArrayBufferView,
+  isString: isString,
+  isNumber: isNumber,
+  isObject: isObject,
+  isUndefined: isUndefined,
+  isDate: isDate,
+  isFile: isFile,
+  isBlob: isBlob,
+  isFunction: isFunction,
+  isStream: isStream,
+  isURLSearchParams: isURLSearchParams,
+  isStandardBrowserEnv: isStandardBrowserEnv,
+  forEach: forEach,
+  merge: merge,
+  deepMerge: deepMerge,
+  extend: extend,
+  trim: trim
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/classnames/index.js":
+/*!******************************************!*\
+  !*** ./node_modules/classnames/index.js ***!
+  \******************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
+  Copyright (c) 2017 Jed Watson.
+  Licensed under the MIT License (MIT), see
+  http://jedwatson.github.io/classnames
+*/
+/* global define */
+
+(function () {
+	'use strict';
+
+	var hasOwn = {}.hasOwnProperty;
+
+	function classNames () {
+		var classes = [];
+
+		for (var i = 0; i < arguments.length; i++) {
+			var arg = arguments[i];
+			if (!arg) continue;
+
+			var argType = typeof arg;
+
+			if (argType === 'string' || argType === 'number') {
+				classes.push(arg);
+			} else if (Array.isArray(arg) && arg.length) {
+				var inner = classNames.apply(null, arg);
+				if (inner) {
+					classes.push(inner);
+				}
+			} else if (argType === 'object') {
+				for (var key in arg) {
+					if (hasOwn.call(arg, key) && arg[key]) {
+						classes.push(key);
+					}
+				}
+			}
+		}
+
+		return classes.join(' ');
+	}
+
+	if ( true && module.exports) {
+		classNames.default = classNames;
+		module.exports = classNames;
+	} else if (true) {
+		// register as 'classnames', consistent with npm package name
+		!(__WEBPACK_AMD_DEFINE_ARRAY__ = [], __WEBPACK_AMD_DEFINE_RESULT__ = (function () {
+			return classNames;
+		}).apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__),
+				__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
+	} else {}
+}());
+
+
+/***/ }),
+
 /***/ "./node_modules/core-js/es/index.js":
 /*!******************************************!*\
   !*** ./node_modules/core-js/es/index.js ***!
@@ -19731,37 +21606,44 @@ module.exports = path;
 
 /***/ }),
 
-/***/ "./node_modules/css-loader/dist/cjs.js!./node_modules/sass-loader/dist/cjs.js!./src/components/Banner/Banner.scss":
-/*!************************************************************************************************************************!*\
-  !*** ./node_modules/css-loader/dist/cjs.js!./node_modules/sass-loader/dist/cjs.js!./src/components/Banner/Banner.scss ***!
-  \************************************************************************************************************************/
+/***/ "./node_modules/css-loader/dist/cjs.js?!./node_modules/postcss-loader/src/index.js?!./node_modules/sass-loader/dist/cjs.js?!./src/components/question/index.scss":
+/*!*****************************************************************************************************************************************************************************************!*\
+  !*** ./node_modules/css-loader/dist/cjs.js??ref--4-1!./node_modules/postcss-loader/src??ref--4-2!./node_modules/sass-loader/dist/cjs.js??ref--4-3!./src/components/question/index.scss ***!
+  \*****************************************************************************************************************************************************************************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
 // Imports
 var ___CSS_LOADER_API_IMPORT___ = __webpack_require__(/*! ../../../node_modules/css-loader/dist/runtime/api.js */ "./node_modules/css-loader/dist/runtime/api.js");
-exports = ___CSS_LOADER_API_IMPORT___(false);
+exports = ___CSS_LOADER_API_IMPORT___(true);
 // Module
-exports.push([module.i, ".banner {\n  background-color: moccasin;\n  box-sizing: border-box;\n  padding: 2rem;\n  text-align: center; }\n  .banner__text {\n    color: darkRed; }\n", ""]);
+exports.push([module.i, ".index-question-jGCDv {\n  background-color: moccasin;\n  -webkit-box-sizing: border-box;\n          box-sizing: border-box;\n  padding: 2rem;\n  text-align: center; }\n\n.index-active-qDzzK {\n  background-color: #86f0d3; }\n", "",{"version":3,"sources":["/Users/mediasenryakudesign12/Repos/boilerplate-ts-react-sassmodules/src/components/question/index.scss","/Users/mediasenryakudesign12/Repos/boilerplate-ts-react-sassmodules/src/styles/colors.scss"],"names":[],"mappings":"AAEA;EACE,0BCHiB;EDIjB,8BAAsB;UAAtB,sBAAsB;EACtB,aAAa;EACb,kBAAkB,EAAA;;AAGpB;EACE,yBAAoC,EAAA","file":"index.scss","sourcesContent":["@import \"../../styles/colors\";\n\n.question {\n  background-color: $moccasin;\n  box-sizing: border-box;\n  padding: 2rem;\n  text-align: center;\n}\n\n.active {\n  background-color: rgb(134, 240, 211);\n}\n","$moccasin: moccasin;\n$dark-red: darkRed;\n$supergray: rgba(0,0,0,0.1);\n"]}]);
 // Exports
+exports.locals = {
+	"question": "index-question-jGCDv",
+	"active": "index-active-qDzzK"
+};
 module.exports = exports;
 
 
 /***/ }),
 
-/***/ "./node_modules/css-loader/dist/cjs.js!./node_modules/sass-loader/dist/cjs.js!./src/styles/global.scss":
-/*!*************************************************************************************************************!*\
-  !*** ./node_modules/css-loader/dist/cjs.js!./node_modules/sass-loader/dist/cjs.js!./src/styles/global.scss ***!
-  \*************************************************************************************************************/
+/***/ "./node_modules/css-loader/dist/cjs.js?!./node_modules/postcss-loader/src/index.js?!./node_modules/sass-loader/dist/cjs.js?!./src/styles/app.scss":
+/*!**************************************************************************************************************************************************************************!*\
+  !*** ./node_modules/css-loader/dist/cjs.js??ref--4-1!./node_modules/postcss-loader/src??ref--4-2!./node_modules/sass-loader/dist/cjs.js??ref--4-3!./src/styles/app.scss ***!
+  \**************************************************************************************************************************************************************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
 // Imports
 var ___CSS_LOADER_API_IMPORT___ = __webpack_require__(/*! ../../node_modules/css-loader/dist/runtime/api.js */ "./node_modules/css-loader/dist/runtime/api.js");
-exports = ___CSS_LOADER_API_IMPORT___(false);
+exports = ___CSS_LOADER_API_IMPORT___(true);
 // Module
-exports.push([module.i, "html {\n  font-size: 10px; }\n\nbody {\n  font-size: 1.8rem;\n  margin: 0 auto;\n  -webkit-font-smoothing: antialiased;\n  -moz-osx-font-smoothing: grayscale; }\n", ""]);
+exports.push([module.i, ".app-app-EVpmm {\n  -webkit-font-smoothing: antialiased;\n  -moz-osx-font-smoothing: grayscale;\n  font-size: 16px;\n  margin: 30px; }\n  .app-app-EVpmm hr {\n    border: 1px solid rgba(0, 0, 0, 0.1);\n    border-width: 1px 0 0 0;\n    height: 1px;\n    margin: 24px 0; }\n  .app-app-EVpmm li {\n    margin: .5em; }\n", "",{"version":3,"sources":["/Users/mediasenryakudesign12/Repos/boilerplate-ts-react-sassmodules/src/styles/app.scss","/Users/mediasenryakudesign12/Repos/boilerplate-ts-react-sassmodules/src/styles/colors.scss"],"names":[],"mappings":"AAEA;EACE,mCAAmC;EACnC,kCAAkC;EAClC,eAAe;EACf,YAAY,EAAA;EAJd;IAOI,oCCPuB;IDQvB,uBAAuB;IACvB,WAAW;IACX,cAAc,EAAA;EAVlB;IAcI,YAAY,EAAA","file":"app.scss","sourcesContent":["@import \"./colors\";\n\n.app {\n  -webkit-font-smoothing: antialiased;\n  -moz-osx-font-smoothing: grayscale;\n  font-size: 16px;\n  margin: 30px;\n\n  hr {\n    border: 1px solid $supergray;\n    border-width: 1px 0 0 0;\n    height: 1px;\n    margin: 24px 0;\n  }\n\n  li {\n    margin: .5em;\n  }\n}\n","$moccasin: moccasin;\n$dark-red: darkRed;\n$supergray: rgba(0,0,0,0.1);\n"]}]);
 // Exports
+exports.locals = {
+	"app": "app-app-EVpmm"
+};
 module.exports = exports;
 
 
@@ -19970,6 +21852,201 @@ module.exports = shouldUseNative() ? Object.assign : function (target, source) {
 
 	return to;
 };
+
+
+/***/ }),
+
+/***/ "./node_modules/process/browser.js":
+/*!*****************************************!*\
+  !*** ./node_modules/process/browser.js ***!
+  \*****************************************/
+/*! no static exports found */
+/***/ (function(module, exports) {
+
+// shim for using process in browser
+var process = module.exports = {};
+
+// cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
+
+var cachedSetTimeout;
+var cachedClearTimeout;
+
+function defaultSetTimout() {
+    throw new Error('setTimeout has not been defined');
+}
+function defaultClearTimeout () {
+    throw new Error('clearTimeout has not been defined');
+}
+(function () {
+    try {
+        if (typeof setTimeout === 'function') {
+            cachedSetTimeout = setTimeout;
+        } else {
+            cachedSetTimeout = defaultSetTimout;
+        }
+    } catch (e) {
+        cachedSetTimeout = defaultSetTimout;
+    }
+    try {
+        if (typeof clearTimeout === 'function') {
+            cachedClearTimeout = clearTimeout;
+        } else {
+            cachedClearTimeout = defaultClearTimeout;
+        }
+    } catch (e) {
+        cachedClearTimeout = defaultClearTimeout;
+    }
+} ())
+function runTimeout(fun) {
+    if (cachedSetTimeout === setTimeout) {
+        //normal enviroments in sane situations
+        return setTimeout(fun, 0);
+    }
+    // if setTimeout wasn't available but was latter defined
+    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+        cachedSetTimeout = setTimeout;
+        return setTimeout(fun, 0);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedSetTimeout(fun, 0);
+    } catch(e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+            return cachedSetTimeout.call(null, fun, 0);
+        } catch(e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+            return cachedSetTimeout.call(this, fun, 0);
+        }
+    }
+
+
+}
+function runClearTimeout(marker) {
+    if (cachedClearTimeout === clearTimeout) {
+        //normal enviroments in sane situations
+        return clearTimeout(marker);
+    }
+    // if clearTimeout wasn't available but was latter defined
+    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+        cachedClearTimeout = clearTimeout;
+        return clearTimeout(marker);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedClearTimeout(marker);
+    } catch (e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+            return cachedClearTimeout.call(null, marker);
+        } catch (e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+            return cachedClearTimeout.call(this, marker);
+        }
+    }
+
+
+
+}
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = runTimeout(cleanUpNextTick);
+    draining = true;
+
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
+            }
+        }
+        queueIndex = -1;
+        len = queue.length;
+    }
+    currentQueue = null;
+    draining = false;
+    runClearTimeout(timeout);
+}
+
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        runTimeout(drainQueue);
+    }
+};
+
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+process.prependListener = noop;
+process.prependOnceListener = noop;
+
+process.listeners = function (name) { return [] }
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
 
 
 /***/ }),
@@ -50313,6 +52390,1748 @@ if (false) {} else {
 
 /***/ }),
 
+/***/ "./node_modules/reactn/build/add-callback.js":
+/*!***************************************************!*\
+  !*** ./node_modules/reactn/build/add-callback.js ***!
+  \***************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+function _addCallback(globalStateManager, callback) {
+    return globalStateManager.addCallback(callback);
+}
+exports.default = _addCallback;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/add-reducer.js":
+/*!**************************************************!*\
+  !*** ./node_modules/reactn/build/add-reducer.js ***!
+  \**************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+function _addReducer(globalStateManager, name, reducer) {
+    return globalStateManager.addReducer(name, reducer);
+}
+exports.default = _addReducer;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/add-reducers.js":
+/*!***************************************************!*\
+  !*** ./node_modules/reactn/build/add-reducers.js ***!
+  \***************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __values = (this && this.__values) || function (o) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator], i = 0;
+    if (m) return m.call(o);
+    return {
+        next: function () {
+            if (o && i >= o.length) o = void 0;
+            return { value: o && o[i++], done: !o };
+        }
+    };
+};
+var __read = (this && this.__read) || function (o, n) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator];
+    if (!m) return o;
+    var i = m.call(o), r, ar = [], e;
+    try {
+        while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+    }
+    catch (error) { e = { error: error }; }
+    finally {
+        try {
+            if (r && !r.done && (m = i["return"])) m.call(i);
+        }
+        finally { if (e) throw e.error; }
+    }
+    return ar;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+var add_reducer_1 = __webpack_require__(/*! ./add-reducer */ "./node_modules/reactn/build/add-reducer.js");
+function _addReducers(globalStateManager, reducers) {
+    var e_1, _a;
+    var removeReducers = new Set();
+    try {
+        for (var _b = __values(Object.entries(reducers)), _c = _b.next(); !_c.done; _c = _b.next()) {
+            var _d = __read(_c.value, 2), name = _d[0], reducer = _d[1];
+            removeReducers.add(add_reducer_1.default(globalStateManager, name, reducer));
+        }
+    }
+    catch (e_1_1) { e_1 = { error: e_1_1 }; }
+    finally {
+        try {
+            if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
+        }
+        finally { if (e_1) throw e_1.error; }
+    }
+    return function () {
+        var e_2, _a;
+        var success = true;
+        try {
+            for (var removeReducers_1 = __values(removeReducers), removeReducers_1_1 = removeReducers_1.next(); !removeReducers_1_1.done; removeReducers_1_1 = removeReducers_1.next()) {
+                var removeReducer = removeReducers_1_1.value;
+                success = success && removeReducer();
+            }
+        }
+        catch (e_2_1) { e_2 = { error: e_2_1 }; }
+        finally {
+            try {
+                if (removeReducers_1_1 && !removeReducers_1_1.done && (_a = removeReducers_1.return)) _a.call(removeReducers_1);
+            }
+            finally { if (e_2) throw e_2.error; }
+        }
+        return success;
+    };
+}
+exports.default = _addReducers;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/components.js":
+/*!*************************************************!*\
+  !*** ./node_modules/reactn/build/components.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+var React = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+var methods_1 = __webpack_require__(/*! ./methods */ "./node_modules/reactn/build/methods.js");
+var bind_lifecycle_methods_1 = __webpack_require__(/*! ./utils/bind-lifecycle-methods */ "./node_modules/reactn/build/utils/bind-lifecycle-methods.js");
+var isComponentDidMount = false;
+var isComponentDidUpdate = false;
+var isSetGlobalCallback = false;
+var ReactPureComponent = React.PureComponent || React.Component;
+var ReactNComponent = (function (_super) {
+    __extends(ReactNComponent, _super);
+    function ReactNComponent(props, context) {
+        var _this = _super.call(this, props, context) || this;
+        _this._globalCallback = _this._globalCallback.bind(_this);
+        bind_lifecycle_methods_1.default(_this);
+        return _this;
+    }
+    Object.defineProperty(ReactNComponent.prototype, "dispatch", {
+        get: function () {
+            return methods_1.ReactNDispatch();
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(ReactNComponent.prototype, "global", {
+        get: function () {
+            return methods_1.ReactNGlobal(this);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    ReactNComponent.prototype.setGlobal = function (newGlobalState, callback) {
+        if (callback === void 0) { callback = null; }
+        return methods_1.ReactNSetGlobal(newGlobalState, callback, !isComponentDidMount &&
+            !isComponentDidUpdate &&
+            !isSetGlobalCallback);
+    };
+    ReactNComponent.prototype._globalCallback = function () {
+        return methods_1.ReactNGlobalCallback(this);
+    };
+    return ReactNComponent;
+}(React.Component));
+exports.ReactNComponent = ReactNComponent;
+;
+var ReactNPureComponent = (function (_super) {
+    __extends(ReactNPureComponent, _super);
+    function ReactNPureComponent(props, context) {
+        var _this = _super.call(this, props, context) || this;
+        _this._globalCallback = _this._globalCallback.bind(_this);
+        bind_lifecycle_methods_1.default(_this);
+        return _this;
+    }
+    Object.defineProperty(ReactNPureComponent.prototype, "dispatch", {
+        get: function () {
+            return methods_1.ReactNDispatch();
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(ReactNPureComponent.prototype, "global", {
+        get: function () {
+            return methods_1.ReactNGlobal(this);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    ReactNPureComponent.prototype.setGlobal = function (newGlobalState, callback) {
+        if (callback === void 0) { callback = null; }
+        return methods_1.ReactNSetGlobal(newGlobalState, callback, !isComponentDidMount &&
+            !isComponentDidUpdate &&
+            !isSetGlobalCallback);
+    };
+    ReactNPureComponent.prototype._globalCallback = function () {
+        return methods_1.ReactNGlobalCallback(this);
+    };
+    return ReactNPureComponent;
+}(ReactPureComponent));
+exports.ReactNPureComponent = ReactNPureComponent;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/context.js":
+/*!**********************************************!*\
+  !*** ./node_modules/reactn/build/context.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var react_1 = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+var default_global_state_manager_1 = __webpack_require__(/*! ./default-global-state-manager */ "./node_modules/reactn/build/default-global-state-manager.js");
+var getContext = function () {
+    if (typeof react_1.createContext === 'function') {
+        return react_1.createContext(default_global_state_manager_1.default);
+    }
+    return null;
+};
+exports.default = getContext();
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/create-provider.js":
+/*!******************************************************!*\
+  !*** ./node_modules/reactn/build/create-provider.js ***!
+  \******************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+var React = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+var context_1 = __webpack_require__(/*! ./context */ "./node_modules/reactn/build/context.js");
+var add_reducer_1 = __webpack_require__(/*! ./add-reducer */ "./node_modules/reactn/build/add-reducer.js");
+var add_reducers_1 = __webpack_require__(/*! ./add-reducers */ "./node_modules/reactn/build/add-reducers.js");
+var global_state_manager_1 = __webpack_require__(/*! ./global-state-manager */ "./node_modules/reactn/build/global-state-manager.js");
+var set_global_1 = __webpack_require__(/*! ./set-global */ "./node_modules/reactn/build/set-global.js");
+var use_dispatch_1 = __webpack_require__(/*! ./use-dispatch */ "./node_modules/reactn/build/use-dispatch.js");
+var use_global_1 = __webpack_require__(/*! ./use-global */ "./node_modules/reactn/build/use-global.js");
+var is_property_reducer_1 = __webpack_require__(/*! ./utils/is-property-reducer */ "./node_modules/reactn/build/utils/is-property-reducer.js");
+var react_context_error_1 = __webpack_require__(/*! ./utils/react-context-error */ "./node_modules/reactn/build/utils/react-context-error.js");
+var with_global_1 = __webpack_require__(/*! ./with-global */ "./node_modules/reactn/build/with-global.js");
+function _createProvider(initialState, initialReducers) {
+    if (initialState === void 0) { initialState = Object.create(null); }
+    if (initialReducers === void 0) { initialReducers = Object.create(null); }
+    if (context_1.default === null) {
+        throw react_context_error_1.default;
+    }
+    var globalStateManager = new global_state_manager_1.default(initialState, initialReducers);
+    return (function (_super) {
+        __extends(ReactNProvider, _super);
+        function ReactNProvider() {
+            return _super !== null && _super.apply(this, arguments) || this;
+        }
+        ReactNProvider.addCallback = function (f) {
+            return globalStateManager.addCallback(f);
+        };
+        ReactNProvider.addReducer = function (name, reducer) {
+            return add_reducer_1.default(globalStateManager, name, reducer);
+        };
+        ReactNProvider.addReducers = function (reducers) {
+            return add_reducers_1.default(globalStateManager, reducers);
+        };
+        Object.defineProperty(ReactNProvider, "dispatch", {
+            get: function () {
+                return globalStateManager.dispatchers;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(ReactNProvider, "dispatcherMap", {
+            get: function () {
+                return globalStateManager.dispatcherMap;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        ReactNProvider.getDispatch = function () {
+            return globalStateManager.dispatchers;
+        };
+        ReactNProvider.getGlobal = function () {
+            return globalStateManager.state;
+        };
+        Object.defineProperty(ReactNProvider, "global", {
+            get: function () {
+                return globalStateManager.state;
+            },
+            enumerable: true,
+            configurable: true
+        });
+        ReactNProvider.removeCallback = function (callback) {
+            return globalStateManager.removeCallback(callback);
+        };
+        ReactNProvider.reset = function () {
+            return globalStateManager.reset();
+        };
+        ReactNProvider.setGlobal = function (newGlobalState, callback) {
+            if (callback === void 0) { callback = null; }
+            return set_global_1.default(globalStateManager, newGlobalState, callback);
+        };
+        ReactNProvider.useDispatch = function (reducer, property) {
+            if (typeof reducer === 'function') {
+                if (is_property_reducer_1.default(reducer, property)) {
+                    return use_dispatch_1.default(globalStateManager, reducer, property);
+                }
+                return use_dispatch_1.default(globalStateManager, reducer);
+            }
+            return use_dispatch_1.default(globalStateManager, reducer);
+        };
+        ReactNProvider.useGlobal = function (property) {
+            return use_global_1.default(globalStateManager, property);
+        };
+        ReactNProvider.withGlobal = function (getter, setter) {
+            if (getter === void 0) { getter = function (global) { return global; }; }
+            if (setter === void 0) { setter = function () { return null; }; }
+            return with_global_1.default(globalStateManager, getter, setter);
+        };
+        ReactNProvider.prototype.render = function () {
+            return (React.createElement(context_1.default.Provider, { value: globalStateManager }, this.props.children));
+        };
+        return ReactNProvider;
+    }(React.Component));
+}
+exports.default = _createProvider;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/decorator.js":
+/*!************************************************!*\
+  !*** ./node_modules/reactn/build/decorator.js ***!
+  \************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
+var __read = (this && this.__read) || function (o, n) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator];
+    if (!m) return o;
+    var i = m.call(o), r, ar = [], e;
+    try {
+        while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+    }
+    catch (error) { e = { error: error }; }
+    finally {
+        try {
+            if (r && !r.done && (m = i["return"])) m.call(i);
+        }
+        finally { if (e) throw e.error; }
+    }
+    return ar;
+};
+var __spread = (this && this.__spread) || function () {
+    for (var ar = [], i = 0; i < arguments.length; i++) ar = ar.concat(__read(arguments[i]));
+    return ar;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+var react_1 = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+var methods_1 = __webpack_require__(/*! ./methods */ "./node_modules/reactn/build/methods.js");
+var isComponentDidMount = false;
+var isComponentDidUpdate = false;
+var isSetGlobalCallback = false;
+var _a = __read(react_1.version.split('.').map(function (v) { return parseInt(v); }), 2), rVerMaj = _a[0], rVerMin = _a[1];
+var isUsingOldReact = rVerMaj < 16 || (rVerMaj === 16 && rVerMin < 3);
+var componentName = function (DecoratedComponent) {
+    return typeof DecoratedComponent === 'string' ?
+        DecoratedComponent :
+        DecoratedComponent.displayName ||
+            DecoratedComponent.name;
+};
+function ReactN(DecoratedComponent) {
+    var DecoratedReactNComponent = (function (_super) {
+        __extends(DecoratedReactNComponent, _super);
+        function DecoratedReactNComponent(props, context) {
+            var _this = _super.call(this, props, context) || this;
+            _this._globalCallback = _this._globalCallback.bind(_this);
+            return _this;
+        }
+        DecoratedReactNComponent.prototype.componentWillUnmount = function () {
+            methods_1.ReactNComponentWillUnmount(this);
+            if (_super.prototype.componentWillUnmount) {
+                _super.prototype.componentWillUnmount.call(this);
+            }
+        };
+        DecoratedReactNComponent.prototype.componentWillUpdate = function () {
+            var args = [];
+            for (var _i = 0; _i < arguments.length; _i++) {
+                args[_i] = arguments[_i];
+            }
+            if (isUsingOldReact) {
+                methods_1.ReactNComponentWillUpdate(this);
+            }
+            if (_super.prototype.componentWillUpdate) {
+                _super.prototype.componentWillUpdate.apply(this, __spread(args));
+            }
+        };
+        DecoratedReactNComponent.prototype.UNSAFE_componentWillUpdate = function () {
+            var args = [];
+            for (var _i = 0; _i < arguments.length; _i++) {
+                args[_i] = arguments[_i];
+            }
+            if (!isUsingOldReact) {
+                methods_1.ReactNComponentWillUpdate(this);
+            }
+            if (_super.prototype.UNSAFE_componentWillUpdate) {
+                _super.prototype.UNSAFE_componentWillUpdate.apply(this, __spread(args));
+            }
+        };
+        Object.defineProperty(DecoratedReactNComponent.prototype, "dispatch", {
+            get: function () {
+                return methods_1.ReactNDispatch();
+            },
+            enumerable: true,
+            configurable: true
+        });
+        Object.defineProperty(DecoratedReactNComponent.prototype, "global", {
+            get: function () {
+                return methods_1.ReactNGlobal(this);
+            },
+            enumerable: true,
+            configurable: true
+        });
+        DecoratedReactNComponent.prototype.setGlobal = function (newGlobalState, callback) {
+            if (callback === void 0) { callback = null; }
+            return methods_1.ReactNSetGlobal(newGlobalState, callback, !isComponentDidMount &&
+                !isComponentDidUpdate &&
+                !isSetGlobalCallback);
+        };
+        DecoratedReactNComponent.prototype._globalCallback = function () {
+            return methods_1.ReactNGlobalCallback(this);
+        };
+        DecoratedReactNComponent.displayName = componentName(DecoratedComponent) + "-ReactN";
+        return DecoratedReactNComponent;
+    }(DecoratedComponent));
+    return DecoratedReactNComponent;
+}
+exports.default = ReactN;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/default-global-state-manager.js":
+/*!*******************************************************************!*\
+  !*** ./node_modules/reactn/build/default-global-state-manager.js ***!
+  \*******************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var global_state_manager_1 = __webpack_require__(/*! ./global-state-manager */ "./node_modules/reactn/build/global-state-manager.js");
+exports.default = new global_state_manager_1.default();
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/get-dispatch.js":
+/*!***************************************************!*\
+  !*** ./node_modules/reactn/build/get-dispatch.js ***!
+  \***************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+function _getDispatch(globalStateManager) {
+    return globalStateManager.dispatchers;
+}
+exports.default = _getDispatch;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/get-global.js":
+/*!*************************************************!*\
+  !*** ./node_modules/reactn/build/get-global.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+function _getGlobal(globalStateManager) {
+    return globalStateManager.state;
+}
+exports.default = _getGlobal;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/global-state-manager.js":
+/*!***********************************************************!*\
+  !*** ./node_modules/reactn/build/global-state-manager.js ***!
+  \***********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __values = (this && this.__values) || function (o) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator], i = 0;
+    if (m) return m.call(o);
+    return {
+        next: function () {
+            if (o && i >= o.length) o = void 0;
+            return { value: o && o[i++], done: !o };
+        }
+    };
+};
+var __read = (this && this.__read) || function (o, n) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator];
+    if (!m) return o;
+    var i = m.call(o), r, ar = [], e;
+    try {
+        while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+    }
+    catch (error) { e = { error: error }; }
+    finally {
+        try {
+            if (r && !r.done && (m = i["return"])) m.call(i);
+        }
+        finally { if (e) throw e.error; }
+    }
+    return ar;
+};
+var __spread = (this && this.__spread) || function () {
+    for (var ar = [], i = 0; i < arguments.length; i++) ar = ar.concat(__read(arguments[i]));
+    return ar;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+var object_get_listener_1 = __webpack_require__(/*! ./utils/object-get-listener */ "./node_modules/reactn/build/utils/object-get-listener.js");
+var copyObject = function (obj) {
+    return Object.assign(Object.create(null), obj);
+};
+exports.INVALID_NEW_GLOBAL_STATE = new Error('ReactN global state must be a function, null, object, or Promise.');
+var GlobalStateManager = (function () {
+    function GlobalStateManager(initialState, initialReducers) {
+        if (initialState === void 0) { initialState = Object.create(null); }
+        if (initialReducers === void 0) { initialReducers = Object.create(null); }
+        this._callbacks = new Set();
+        this._dispatchers = Object.create(null);
+        this._middlewares = new Set();
+        this._propertyListeners = new Map();
+        this._queue = new Map();
+        this._initialReducers = copyObject(initialReducers);
+        this._initialState = copyObject(initialState);
+        this._state = copyObject(initialState);
+        this.addReducers(initialReducers);
+    }
+    GlobalStateManager.prototype.addCallback = function (callback) {
+        var _this = this;
+        this._callbacks.add(callback);
+        return function () {
+            return _this.removeCallback(callback);
+        };
+    };
+    GlobalStateManager.prototype.addMiddleware = function (createMiddleware) {
+        var _this = this;
+        var middleware = createMiddleware(this.state, this.dispatchers);
+        this._middlewares.add(middleware);
+        return function () {
+            return _this.removeMiddleware(middleware);
+        };
+    };
+    GlobalStateManager.prototype.addPropertyListener = function (property, propertyListener) {
+        if (this.propertyListeners.has(property)) {
+            this.propertyListeners.get(property).add(propertyListener);
+        }
+        else {
+            this.propertyListeners.set(property, new Set([propertyListener]));
+        }
+    };
+    GlobalStateManager.prototype.addReducer = function (name, reducer) {
+        var _this = this;
+        this._dispatchers[name] = this.createDispatcher(reducer, name);
+        return function () {
+            return _this.removeDispatcher(name);
+        };
+    };
+    GlobalStateManager.prototype.addReducers = function (reducers) {
+        var e_1, _a;
+        try {
+            for (var _b = __values(Object.entries(reducers)), _c = _b.next(); !_c.done; _c = _b.next()) {
+                var _d = __read(_c.value, 2), name = _d[0], reducer = _d[1];
+                this.addReducer(name, reducer);
+            }
+        }
+        catch (e_1_1) { e_1 = { error: e_1_1 }; }
+        finally {
+            try {
+                if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
+            }
+            finally { if (e_1) throw e_1.error; }
+        }
+    };
+    GlobalStateManager.prototype.clearQueue = function () {
+        return this.queue.clear();
+    };
+    GlobalStateManager.prototype.createDispatcher = function (reducer, name) {
+        var _this = this;
+        if (name === void 0) { name = reducer.name; }
+        return function () {
+            var args = [];
+            for (var _i = 0; _i < arguments.length; _i++) {
+                args[_i] = arguments[_i];
+            }
+            return _this.set(reducer.apply(void 0, __spread([_this.state, _this.dispatcherMap], args)), name, args)
+                .then(function () { return _this.state; });
+        };
+    };
+    Object.defineProperty(GlobalStateManager.prototype, "dispatcherMap", {
+        get: function () {
+            var _this = this;
+            var dispatch = function (newGlobalState) {
+                return _this.set(newGlobalState).then(function () { return _this.state; });
+            };
+            return Object.assign(dispatch, this.dispatchers);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(GlobalStateManager.prototype, "dispatchers", {
+        get: function () {
+            return copyObject(this._dispatchers);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    GlobalStateManager.prototype.enqueue = function (property, value) {
+        this._queue.set(property, value);
+    };
+    GlobalStateManager.prototype.flush = function (reducerName, reducerArgs) {
+        var e_2, _a, e_3, _b, e_4, _c, e_5, _d;
+        var propertyListeners = new Set();
+        var stateChange = Object.create(null);
+        this.queue.forEach(function (value, key) {
+            stateChange[key] = value;
+        });
+        try {
+            for (var _e = __values(this.queue.entries()), _f = _e.next(); !_f.done; _f = _e.next()) {
+                var _g = __read(_f.value, 2), property = _g[0], value = _g[1];
+                this._state[property] = value;
+                if (this.propertyListeners.has(property)) {
+                    try {
+                        for (var _h = (e_3 = void 0, __values(this.propertyListeners.get(property))), _j = _h.next(); !_j.done; _j = _h.next()) {
+                            var propertyListener = _j.value;
+                            propertyListeners.add(propertyListener);
+                        }
+                    }
+                    catch (e_3_1) { e_3 = { error: e_3_1 }; }
+                    finally {
+                        try {
+                            if (_j && !_j.done && (_b = _h.return)) _b.call(_h);
+                        }
+                        finally { if (e_3) throw e_3.error; }
+                    }
+                }
+            }
+        }
+        catch (e_2_1) { e_2 = { error: e_2_1 }; }
+        finally {
+            try {
+                if (_f && !_f.done && (_a = _e.return)) _a.call(_e);
+            }
+            finally { if (e_2) throw e_2.error; }
+        }
+        this.clearQueue();
+        try {
+            for (var propertyListeners_1 = __values(propertyListeners), propertyListeners_1_1 = propertyListeners_1.next(); !propertyListeners_1_1.done; propertyListeners_1_1 = propertyListeners_1.next()) {
+                var propertyListener = propertyListeners_1_1.value;
+                propertyListener();
+            }
+        }
+        catch (e_4_1) { e_4 = { error: e_4_1 }; }
+        finally {
+            try {
+                if (propertyListeners_1_1 && !propertyListeners_1_1.done && (_c = propertyListeners_1.return)) _c.call(propertyListeners_1);
+            }
+            finally { if (e_4) throw e_4.error; }
+        }
+        try {
+            for (var _k = __values(this._callbacks), _l = _k.next(); !_l.done; _l = _k.next()) {
+                var callback = _l.value;
+                this.set(callback(this.state, this.dispatchers, stateChange, reducerName, reducerArgs));
+            }
+        }
+        catch (e_5_1) { e_5 = { error: e_5_1 }; }
+        finally {
+            try {
+                if (_l && !_l.done && (_d = _k.return)) _d.call(_k);
+            }
+            finally { if (e_5) throw e_5.error; }
+        }
+        return stateChange;
+    };
+    GlobalStateManager.prototype.getDispatcher = function (name) {
+        if (this.hasDispatcher(name)) {
+            return this._dispatchers[name];
+        }
+        throw new Error("Cannot return unknown ReactN reducer `" + name + "`.");
+    };
+    GlobalStateManager.prototype.hasCallback = function (callback) {
+        return this._callbacks.has(callback);
+    };
+    GlobalStateManager.prototype.hasMiddleware = function (middleware) {
+        return this._middlewares.has(middleware);
+    };
+    GlobalStateManager.prototype.hasPropertyListener = function (pl) {
+        var e_6, _a, e_7, _b;
+        try {
+            for (var _c = __values(this.propertyListeners.values()), _d = _c.next(); !_d.done; _d = _c.next()) {
+                var propertyListeners = _d.value;
+                try {
+                    for (var propertyListeners_2 = (e_7 = void 0, __values(propertyListeners)), propertyListeners_2_1 = propertyListeners_2.next(); !propertyListeners_2_1.done; propertyListeners_2_1 = propertyListeners_2.next()) {
+                        var propertyListener = propertyListeners_2_1.value;
+                        if (propertyListener === pl) {
+                            return true;
+                        }
+                    }
+                }
+                catch (e_7_1) { e_7 = { error: e_7_1 }; }
+                finally {
+                    try {
+                        if (propertyListeners_2_1 && !propertyListeners_2_1.done && (_b = propertyListeners_2.return)) _b.call(propertyListeners_2);
+                    }
+                    finally { if (e_7) throw e_7.error; }
+                }
+            }
+        }
+        catch (e_6_1) { e_6 = { error: e_6_1 }; }
+        finally {
+            try {
+                if (_d && !_d.done && (_a = _c.return)) _a.call(_c);
+            }
+            finally { if (e_6) throw e_6.error; }
+        }
+        return false;
+    };
+    GlobalStateManager.prototype.hasDispatcher = function (name) {
+        return Object.prototype.hasOwnProperty.call(this._dispatchers, name);
+    };
+    Object.defineProperty(GlobalStateManager.prototype, "queue", {
+        get: function () {
+            return this._queue;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(GlobalStateManager.prototype, "propertyListeners", {
+        get: function () {
+            return this._propertyListeners;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    GlobalStateManager.prototype.removeCallback = function (callback) {
+        return this._callbacks.delete(callback);
+    };
+    GlobalStateManager.prototype.removeDispatcher = function (name) {
+        if (this.hasDispatcher(name)) {
+            delete this._dispatchers[name];
+            return true;
+        }
+        return false;
+    };
+    GlobalStateManager.prototype.removeMiddleware = function (middleware) {
+        return this._middlewares.delete(middleware);
+    };
+    GlobalStateManager.prototype.removePropertyListener = function (propertyListener) {
+        var e_8, _a;
+        var removed = false;
+        try {
+            for (var _b = __values(this.propertyListeners.values()), _c = _b.next(); !_c.done; _c = _b.next()) {
+                var propertyListeners = _c.value;
+                if (propertyListeners.delete(propertyListener)) {
+                    removed = true;
+                }
+            }
+        }
+        catch (e_8_1) { e_8 = { error: e_8_1 }; }
+        finally {
+            try {
+                if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
+            }
+            finally { if (e_8) throw e_8.error; }
+        }
+        return removed;
+    };
+    GlobalStateManager.prototype.reset = function () {
+        this._callbacks.clear();
+        this._dispatchers = Object.create(null);
+        this._middlewares.clear();
+        this._propertyListeners.clear();
+        this._queue.clear();
+        this.addReducers(this._initialReducers);
+        this._state = copyObject(this._initialState);
+    };
+    GlobalStateManager.prototype.set = function (newGlobalState, reducerName, reducerArgs) {
+        if (newGlobalState === null ||
+            typeof newGlobalState === 'undefined') {
+            return Promise.resolve(Object.create(null));
+        }
+        if (newGlobalState instanceof Promise) {
+            return this.setPromise(newGlobalState, reducerName, reducerArgs);
+        }
+        if (typeof newGlobalState === 'function') {
+            return this.setFunction(newGlobalState, reducerName, reducerArgs);
+        }
+        if (typeof newGlobalState === 'object') {
+            return this.setObject(newGlobalState, reducerName, reducerArgs);
+        }
+        throw exports.INVALID_NEW_GLOBAL_STATE;
+    };
+    GlobalStateManager.prototype.setFunction = function (f, reducerName, reducerArgs) {
+        return this.set(f(this.state, reducerName, reducerArgs), reducerName, reducerArgs);
+    };
+    GlobalStateManager.prototype.setObject = function (obj, reducerName, reducerArgs) {
+        var e_9, _a;
+        var properties = Object.keys(obj);
+        try {
+            for (var properties_1 = __values(properties), properties_1_1 = properties_1.next(); !properties_1_1.done; properties_1_1 = properties_1.next()) {
+                var property = properties_1_1.value;
+                var value = obj[property];
+                this.enqueue(property, value);
+            }
+        }
+        catch (e_9_1) { e_9 = { error: e_9_1 }; }
+        finally {
+            try {
+                if (properties_1_1 && !properties_1_1.done && (_a = properties_1.return)) _a.call(properties_1);
+            }
+            finally { if (e_9) throw e_9.error; }
+        }
+        var stateChange = this.flush(reducerName, reducerArgs);
+        return Promise.resolve(stateChange);
+    };
+    GlobalStateManager.prototype.setPromise = function (promise, reducerName, reducerArgs) {
+        var _this = this;
+        return promise
+            .then(function (result) {
+            return _this.set(result, reducerName, reducerArgs);
+        });
+    };
+    GlobalStateManager.prototype.spyState = function (propertyListener) {
+        var _this = this;
+        return object_get_listener_1.default(this._state, function (property) {
+            _this.addPropertyListener(property, propertyListener);
+        });
+    };
+    Object.defineProperty(GlobalStateManager.prototype, "state", {
+        get: function () {
+            return copyObject(this._state);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    return GlobalStateManager;
+}());
+exports.default = GlobalStateManager;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/index.js":
+/*!********************************************!*\
+  !*** ./node_modules/reactn/build/index.js ***!
+  \********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var components_1 = __webpack_require__(/*! ./components */ "./node_modules/reactn/build/components.js");
+var add_callback_1 = __webpack_require__(/*! ./add-callback */ "./node_modules/reactn/build/add-callback.js");
+var add_reducer_1 = __webpack_require__(/*! ./add-reducer */ "./node_modules/reactn/build/add-reducer.js");
+var add_reducers_1 = __webpack_require__(/*! ./add-reducers */ "./node_modules/reactn/build/add-reducers.js");
+var create_provider_1 = __webpack_require__(/*! ./create-provider */ "./node_modules/reactn/build/create-provider.js");
+var decorator_1 = __webpack_require__(/*! ./decorator */ "./node_modules/reactn/build/decorator.js");
+var default_global_state_manager_1 = __webpack_require__(/*! ./default-global-state-manager */ "./node_modules/reactn/build/default-global-state-manager.js");
+var get_dispatch_1 = __webpack_require__(/*! ./get-dispatch */ "./node_modules/reactn/build/get-dispatch.js");
+var get_global_1 = __webpack_require__(/*! ./get-global */ "./node_modules/reactn/build/get-global.js");
+var remove_callback_1 = __webpack_require__(/*! ./remove-callback */ "./node_modules/reactn/build/remove-callback.js");
+var reset_global_1 = __webpack_require__(/*! ./reset-global */ "./node_modules/reactn/build/reset-global.js");
+var set_global_1 = __webpack_require__(/*! ./set-global */ "./node_modules/reactn/build/set-global.js");
+var use_dispatch_1 = __webpack_require__(/*! ./use-dispatch */ "./node_modules/reactn/build/use-dispatch.js");
+var use_global_1 = __webpack_require__(/*! ./use-global */ "./node_modules/reactn/build/use-global.js");
+var with_global_1 = __webpack_require__(/*! ./with-global */ "./node_modules/reactn/build/with-global.js");
+var with_init_1 = __webpack_require__(/*! ./with-init */ "./node_modules/reactn/build/with-init.js");
+var React = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+module.exports = Object.assign(decorator_1.default, React, {
+    addCallback: add_callback_1.default.bind(null, default_global_state_manager_1.default),
+    addReducer: add_reducer_1.default.bind(null, default_global_state_manager_1.default),
+    addReducers: add_reducers_1.default.bind(null, default_global_state_manager_1.default),
+    Component: components_1.ReactNComponent,
+    createProvider: create_provider_1.default,
+    default: decorator_1.default,
+    getDispatch: get_dispatch_1.default.bind(null, default_global_state_manager_1.default),
+    getGlobal: get_global_1.default.bind(null, default_global_state_manager_1.default),
+    PureComponent: components_1.ReactNPureComponent,
+    removeCallback: remove_callback_1.default.bind(null, default_global_state_manager_1.default),
+    resetGlobal: reset_global_1.default.bind(null, default_global_state_manager_1.default),
+    setGlobal: set_global_1.default.bind(null, default_global_state_manager_1.default),
+    useDispatch: use_dispatch_1.default.bind(null, null),
+    useGlobal: use_global_1.default.bind(null, null),
+    withGlobal: with_global_1.default.bind(null, null),
+    withInit: with_init_1.default,
+});
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/methods.js":
+/*!**********************************************!*\
+  !*** ./node_modules/reactn/build/methods.js ***!
+  \**********************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var set_global_1 = __webpack_require__(/*! ./set-global */ "./node_modules/reactn/build/set-global.js");
+var get_global_state_manager_1 = __webpack_require__(/*! ./utils/get-global-state-manager */ "./node_modules/reactn/build/utils/get-global-state-manager.js");
+function ReactNComponentWillUnmount(that) {
+    get_global_state_manager_1.default().removePropertyListener(that._globalCallback);
+}
+exports.ReactNComponentWillUnmount = ReactNComponentWillUnmount;
+function ReactNComponentWillUpdate(that) {
+    get_global_state_manager_1.default().removePropertyListener(that._globalCallback);
+}
+exports.ReactNComponentWillUpdate = ReactNComponentWillUpdate;
+function ReactNShouldComponentUpdate(that) {
+    get_global_state_manager_1.default().removePropertyListener(that._globalCallback);
+}
+exports.ReactNShouldComponentUpdate = ReactNShouldComponentUpdate;
+function ReactNDispatch() {
+    return get_global_state_manager_1.default().dispatchers;
+}
+exports.ReactNDispatch = ReactNDispatch;
+function ReactNGlobalCallback(that) {
+    that.updater.enqueueForceUpdate(that, null, 'forceUpdate');
+}
+exports.ReactNGlobalCallback = ReactNGlobalCallback;
+function ReactNGlobal(that, globalStateManager) {
+    if (globalStateManager === void 0) { globalStateManager = get_global_state_manager_1.default(); }
+    return globalStateManager.spyState(that._globalCallback);
+}
+exports.ReactNGlobal = ReactNGlobal;
+function ReactNSetGlobal(newGlobalState, callback, _sync, globalStateManager) {
+    if (globalStateManager === void 0) { globalStateManager = get_global_state_manager_1.default(); }
+    return set_global_1.default(globalStateManager, newGlobalState, callback);
+}
+exports.ReactNSetGlobal = ReactNSetGlobal;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/remove-callback.js":
+/*!******************************************************!*\
+  !*** ./node_modules/reactn/build/remove-callback.js ***!
+  \******************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+function _removeCallback(globalStateManager, callback) {
+    return globalStateManager.removeCallback(callback);
+}
+exports.default = _removeCallback;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/reset-global.js":
+/*!***************************************************!*\
+  !*** ./node_modules/reactn/build/reset-global.js ***!
+  \***************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+function _resetGlobal(globalStateManager) {
+    return globalStateManager.reset();
+}
+exports.default = _resetGlobal;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/set-global.js":
+/*!*************************************************!*\
+  !*** ./node_modules/reactn/build/set-global.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+function _setGlobal(globalStateManager, newGlobalState, callback) {
+    if (callback === void 0) { callback = null; }
+    if (callback === null) {
+        return globalStateManager.set(newGlobalState)
+            .then(function () {
+            return globalStateManager.state;
+        });
+    }
+    return globalStateManager.set(newGlobalState)
+        .then(function (stateChange) {
+        return _setGlobal(globalStateManager, callback(globalStateManager.state, globalStateManager.dispatcherMap, stateChange));
+    })
+        .then(function () {
+        return globalStateManager.state;
+    });
+}
+exports.default = _setGlobal;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/use-dispatch.js":
+/*!***************************************************!*\
+  !*** ./node_modules/reactn/build/use-dispatch.js ***!
+  \***************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __read = (this && this.__read) || function (o, n) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator];
+    if (!m) return o;
+    var i = m.call(o), r, ar = [], e;
+    try {
+        while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+    }
+    catch (error) { e = { error: error }; }
+    finally {
+        try {
+            if (r && !r.done && (m = i["return"])) m.call(i);
+        }
+        finally { if (e) throw e.error; }
+    }
+    return ar;
+};
+var __spread = (this && this.__spread) || function () {
+    for (var ar = [], i = 0; i < arguments.length; i++) ar = ar.concat(__read(arguments[i]));
+    return ar;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+var react_1 = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+var use_force_update_1 = __webpack_require__(/*! use-force-update */ "./node_modules/use-force-update/use-force-update.js");
+var context_1 = __webpack_require__(/*! ./context */ "./node_modules/reactn/build/context.js");
+var default_global_state_manager_1 = __webpack_require__(/*! ./default-global-state-manager */ "./node_modules/reactn/build/default-global-state-manager.js");
+var is_property_reducer_1 = __webpack_require__(/*! ./utils/is-property-reducer */ "./node_modules/reactn/build/utils/is-property-reducer.js");
+var react_hooks_error_1 = __webpack_require__(/*! ./utils/react-hooks-error */ "./node_modules/reactn/build/utils/react-hooks-error.js");
+function _useDispatch(overrideGlobalStateManager, reducer, property) {
+    if (!react_1.useContext) {
+        throw react_hooks_error_1.default;
+    }
+    var forceUpdate = use_force_update_1.default();
+    var globalStateManager = overrideGlobalStateManager ||
+        react_1.useContext(context_1.default) ||
+        default_global_state_manager_1.default;
+    if (typeof reducer === 'undefined') {
+        return globalStateManager.dispatcherMap;
+    }
+    if (typeof reducer === 'function') {
+        if (is_property_reducer_1.default(reducer, property)) {
+            var newReducer = function (global, _dispatch) {
+                var args = [];
+                for (var _i = 2; _i < arguments.length; _i++) {
+                    args[_i - 2] = arguments[_i];
+                }
+                var newGlobalState = Object.create(null);
+                newGlobalState[property] = reducer.apply(void 0, __spread([global[property]], args));
+                return newGlobalState;
+            };
+            var propertyDispatcher_1 = (globalStateManager.createDispatcher(newReducer, reducer.name));
+            Object.defineProperty(propertyDispatcher_1, 0, {
+                configurable: true,
+                enumerable: true,
+                get: function () {
+                    globalStateManager.addPropertyListener(property, forceUpdate);
+                    return globalStateManager.state[property];
+                },
+            });
+            propertyDispatcher_1[1] = propertyDispatcher_1;
+            var propertyDispatcherSlice = function (start, end) {
+                var values = [propertyDispatcher_1[0], propertyDispatcher_1[1]];
+                return values.slice.apply(values, [start, end]);
+            };
+            propertyDispatcher_1.slice = propertyDispatcherSlice;
+            var propertyDispatcherIterator = function () {
+                var _a;
+                var index = 0;
+                var propertyDispatcherIteratorNext = function () {
+                    if (index < 2) {
+                        return {
+                            done: false,
+                            value: propertyDispatcher_1[index++],
+                        };
+                    }
+                    index = 0;
+                    return {
+                        done: true,
+                        value: undefined,
+                    };
+                };
+                return _a = {},
+                    _a[Symbol.iterator] = propertyDispatcher_1[Symbol.iterator],
+                    _a.next = propertyDispatcherIteratorNext,
+                    _a;
+            };
+            propertyDispatcher_1[Symbol.iterator] = propertyDispatcherIterator;
+            return propertyDispatcher_1;
+        }
+        return globalStateManager.createDispatcher(reducer);
+    }
+    return globalStateManager.getDispatcher(reducer);
+}
+exports.default = _useDispatch;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/use-global.js":
+/*!*************************************************!*\
+  !*** ./node_modules/reactn/build/use-global.js ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var react_1 = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+var use_force_update_1 = __webpack_require__(/*! use-force-update */ "./node_modules/use-force-update/use-force-update.js");
+var context_1 = __webpack_require__(/*! ./context */ "./node_modules/reactn/build/context.js");
+var default_global_state_manager_1 = __webpack_require__(/*! ./default-global-state-manager */ "./node_modules/reactn/build/default-global-state-manager.js");
+var set_global_1 = __webpack_require__(/*! ./set-global */ "./node_modules/reactn/build/set-global.js");
+var react_hooks_error_1 = __webpack_require__(/*! ./utils/react-hooks-error */ "./node_modules/reactn/build/utils/react-hooks-error.js");
+function _useGlobal(overrideGlobalStateManager, property) {
+    if (!react_1.useContext) {
+        throw react_hooks_error_1.default;
+    }
+    var globalStateManager = overrideGlobalStateManager ||
+        react_1.useContext(context_1.default) ||
+        default_global_state_manager_1.default;
+    var forceUpdate = use_force_update_1.default();
+    var removeForceUpdateListener = function () {
+        globalStateManager.removePropertyListener(forceUpdate);
+    };
+    if (typeof property === 'undefined') {
+        react_1.useEffect(function () { return removeForceUpdateListener; });
+        var globalStateSetter = react_1.useCallback(function (newGlobalState, callback) {
+            if (callback === void 0) { callback = null; }
+            return set_global_1.default(globalStateManager, newGlobalState, callback);
+        }, []);
+        return [
+            globalStateManager.spyState(forceUpdate),
+            globalStateSetter,
+        ];
+    }
+    react_1.useEffect(function () {
+        globalStateManager.addPropertyListener(property, forceUpdate);
+        return removeForceUpdateListener;
+    });
+    var globalPropertySetter = react_1.useCallback(function (value, callback) {
+        if (callback === void 0) { callback = null; }
+        var newGlobalState = Object.create(null);
+        newGlobalState[property] = value;
+        return set_global_1.default(globalStateManager, newGlobalState, callback);
+    }, []);
+    return [
+        globalStateManager.state[property],
+        globalPropertySetter,
+    ];
+}
+exports.default = _useGlobal;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/utils/bind-lifecycle-methods.js":
+/*!*******************************************************************!*\
+  !*** ./node_modules/reactn/build/utils/bind-lifecycle-methods.js ***!
+  \*******************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __read = (this && this.__read) || function (o, n) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator];
+    if (!m) return o;
+    var i = m.call(o), r, ar = [], e;
+    try {
+        while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+    }
+    catch (error) { e = { error: error }; }
+    finally {
+        try {
+            if (r && !r.done && (m = i["return"])) m.call(i);
+        }
+        finally { if (e) throw e.error; }
+    }
+    return ar;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+var React = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+var methods_1 = __webpack_require__(/*! ../methods */ "./node_modules/reactn/build/methods.js");
+var component_will_unmount_1 = __webpack_require__(/*! ./component-will-unmount */ "./node_modules/reactn/build/utils/component-will-unmount.js");
+var component_will_update_1 = __webpack_require__(/*! ./component-will-update */ "./node_modules/reactn/build/utils/component-will-update.js");
+var should_component_update_1 = __webpack_require__(/*! ./should-component-update */ "./node_modules/reactn/build/utils/should-component-update.js");
+function bindLifecycleMethods(that) {
+    if (!component_will_unmount_1.componentWillUnmountPrototype(that)) {
+        that.componentWillUnmount = function () {
+            methods_1.ReactNComponentWillUnmount(that);
+        };
+    }
+    var _a = __read(React.version.split('.').map(function (v) { return parseInt(v); }), 2), rVerMaj = _a[0], rVerMin = _a[1];
+    var isPureComponent = React.PureComponent && (that instanceof React.PureComponent);
+    var isUsingOldReact = rVerMaj < 16 || (rVerMaj === 16 && rVerMin < 3);
+    if (isUsingOldReact && !component_will_update_1.componentWillUpdatePrototype(that)) {
+        that.componentWillUpdate = function () {
+            methods_1.ReactNComponentWillUpdate(that);
+        };
+    }
+    if (!isUsingOldReact && isPureComponent && !component_will_update_1.componentWillUpdatePrototype(that)) {
+        that.UNSAFE_componentWillUpdate = function () {
+            methods_1.ReactNComponentWillUpdate(that);
+        };
+    }
+    if (!isUsingOldReact && !isPureComponent && !should_component_update_1.shouldComponentUpdatePrototype(that)) {
+        that.shouldComponentUpdate = function () {
+            methods_1.ReactNShouldComponentUpdate(that);
+            return true;
+        };
+    }
+}
+exports.default = bindLifecycleMethods;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/utils/component-will-unmount.js":
+/*!*******************************************************************!*\
+  !*** ./node_modules/reactn/build/utils/component-will-unmount.js ***!
+  \*******************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var methods_1 = __webpack_require__(/*! ../methods */ "./node_modules/reactn/build/methods.js");
+exports.componentWillUnmountPrototype = function (that) {
+    var proto = Object.getPrototypeOf(that);
+    if (Object.prototype.hasOwnProperty.call(proto, 'componentWillUnmount')) {
+        that.componentWillUnmount = function () {
+            methods_1.ReactNComponentWillUnmount(that);
+            proto.componentWillUnmount.bind(that)();
+        };
+        return true;
+    }
+    return false;
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/utils/component-will-update.js":
+/*!******************************************************************!*\
+  !*** ./node_modules/reactn/build/utils/component-will-update.js ***!
+  \******************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __read = (this && this.__read) || function (o, n) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator];
+    if (!m) return o;
+    var i = m.call(o), r, ar = [], e;
+    try {
+        while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+    }
+    catch (error) { e = { error: error }; }
+    finally {
+        try {
+            if (r && !r.done && (m = i["return"])) m.call(i);
+        }
+        finally { if (e) throw e.error; }
+    }
+    return ar;
+};
+var __spread = (this && this.__spread) || function () {
+    for (var ar = [], i = 0; i < arguments.length; i++) ar = ar.concat(__read(arguments[i]));
+    return ar;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+var methods_1 = __webpack_require__(/*! ../methods */ "./node_modules/reactn/build/methods.js");
+var React = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+exports.componentWillUpdatePrototype = function (that) {
+    var proto = Object.getPrototypeOf(that);
+    var _a = __read(React.version.split('.').map(function (v) { return parseInt(v); }), 2), rVerMaj = _a[0], rVerMin = _a[1];
+    if (Object.prototype.hasOwnProperty.call(proto, 'componentWillUpdate')
+        && ((rVerMaj < 16 || (rVerMaj === 16 && rVerMin < 3)))) {
+        that.componentWillUpdate = function () {
+            var args = [];
+            for (var _i = 0; _i < arguments.length; _i++) {
+                args[_i] = arguments[_i];
+            }
+            methods_1.ReactNComponentWillUpdate(that);
+            proto.componentWillUpdate.bind(that).apply(void 0, __spread(args));
+        };
+        return true;
+    }
+    return false;
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/utils/get-global-state-manager.js":
+/*!*********************************************************************!*\
+  !*** ./node_modules/reactn/build/utils/get-global-state-manager.js ***!
+  \*********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var context_1 = __webpack_require__(/*! ../context */ "./node_modules/reactn/build/context.js");
+var default_global_state_manager_1 = __webpack_require__(/*! ../default-global-state-manager */ "./node_modules/reactn/build/default-global-state-manager.js");
+function getGlobalStateManager() {
+    return (context_1.default &&
+        (context_1.default._currentValue2 ||
+            context_1.default._currentValue)) ||
+        default_global_state_manager_1.default;
+}
+exports.default = getGlobalStateManager;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/utils/is-property-reducer.js":
+/*!****************************************************************!*\
+  !*** ./node_modules/reactn/build/utils/is-property-reducer.js ***!
+  \****************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+function isPropertyReducer(_reducer, property) {
+    return typeof property !== 'undefined';
+}
+exports.default = isPropertyReducer;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/utils/object-get-listener.js":
+/*!****************************************************************!*\
+  !*** ./node_modules/reactn/build/utils/object-get-listener.js ***!
+  \****************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+function objectGetListener(obj, listener) {
+    return Object.keys(obj).reduce(function (accumulator, key) {
+        Object.defineProperty(accumulator, key, {
+            configurable: false,
+            enumerable: true,
+            get: function () {
+                listener(key);
+                return obj[key];
+            }
+        });
+        return accumulator;
+    }, Object.create(null));
+}
+exports.default = objectGetListener;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/utils/react-context-error.js":
+/*!****************************************************************!*\
+  !*** ./node_modules/reactn/build/utils/react-context-error.js ***!
+  \****************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.default = new Error('The installed version of React does not support Context. ' +
+    'Upgrade to React v16.3.0 or later.');
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/utils/react-hooks-error.js":
+/*!**************************************************************!*\
+  !*** ./node_modules/reactn/build/utils/react-hooks-error.js ***!
+  \**************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.default = new Error('The installed version of React does not support Hooks. ' +
+    'Upgrade to React v16.8.0 or later.');
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/utils/should-component-update.js":
+/*!********************************************************************!*\
+  !*** ./node_modules/reactn/build/utils/should-component-update.js ***!
+  \********************************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __read = (this && this.__read) || function (o, n) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator];
+    if (!m) return o;
+    var i = m.call(o), r, ar = [], e;
+    try {
+        while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+    }
+    catch (error) { e = { error: error }; }
+    finally {
+        try {
+            if (r && !r.done && (m = i["return"])) m.call(i);
+        }
+        finally { if (e) throw e.error; }
+    }
+    return ar;
+};
+var __spread = (this && this.__spread) || function () {
+    for (var ar = [], i = 0; i < arguments.length; i++) ar = ar.concat(__read(arguments[i]));
+    return ar;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+var methods_1 = __webpack_require__(/*! ../methods */ "./node_modules/reactn/build/methods.js");
+var React = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+exports.shouldComponentUpdatePrototype = function (that) {
+    var proto = Object.getPrototypeOf(that);
+    var _a = __read(React.version.split('.').map(function (v) { return parseInt(v); }), 2), rVerMaj = _a[0], rVerMin = _a[1];
+    if (Object.prototype.hasOwnProperty.call(proto, 'shouldComponentUpdate')
+        && ((rVerMaj > 16 || (rVerMaj === 16 && rVerMin >= 3)))) {
+        that.shouldComponentUpdate = function () {
+            var args = [];
+            for (var _i = 0; _i < arguments.length; _i++) {
+                args[_i] = arguments[_i];
+            }
+            methods_1.ReactNShouldComponentUpdate(that);
+            return proto.shouldComponentUpdate.bind(that).apply(void 0, __spread(args));
+        };
+        return true;
+    }
+    return false;
+};
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/with-global.js":
+/*!**************************************************!*\
+  !*** ./node_modules/reactn/build/with-global.js ***!
+  \**************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+var React = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+var components_1 = __webpack_require__(/*! ./components */ "./node_modules/reactn/build/components.js");
+var context_1 = __webpack_require__(/*! ./context */ "./node_modules/reactn/build/context.js");
+var global_state_manager_1 = __webpack_require__(/*! ./global-state-manager */ "./node_modules/reactn/build/global-state-manager.js");
+var methods_1 = __webpack_require__(/*! ./methods */ "./node_modules/reactn/build/methods.js");
+var get_global_state_manager_1 = __webpack_require__(/*! ./utils/get-global-state-manager */ "./node_modules/reactn/build/utils/get-global-state-manager.js");
+var componentName = function (Component) {
+    return typeof Component === 'string' ?
+        Component :
+        Component.displayName ||
+            Component.name;
+};
+var isComponentDidMount = false;
+var isComponentDidUpdate = false;
+var isSetGlobalCallback = false;
+function _withGlobal(globalStateManager, getter, setter) {
+    if (globalStateManager === void 0) { globalStateManager = null; }
+    if (getter === void 0) { getter = function (global) { return global; }; }
+    if (setter === void 0) { setter = function () { return null; }; }
+    return function ReactNWithGlobal(Component) {
+        var _a;
+        return _a = (function (_super) {
+                __extends(ReactNWithGlobalHoc, _super);
+                function ReactNWithGlobalHoc() {
+                    var _this = _super !== null && _super.apply(this, arguments) || this;
+                    _this.setGlobal = function (newGlobalState, callback) {
+                        if (callback === void 0) { callback = null; }
+                        return methods_1.ReactNSetGlobal(newGlobalState, callback, !isComponentDidMount &&
+                            !isComponentDidUpdate &&
+                            !isSetGlobalCallback, _this.globalStateManager);
+                    };
+                    return _this;
+                }
+                Object.defineProperty(ReactNWithGlobalHoc.prototype, "dispatch", {
+                    get: function () {
+                        return this.globalStateManager.dispatchers;
+                    },
+                    enumerable: true,
+                    configurable: true
+                });
+                Object.defineProperty(ReactNWithGlobalHoc.prototype, "global", {
+                    get: function () {
+                        return methods_1.ReactNGlobal(this, this.globalStateManager);
+                    },
+                    enumerable: true,
+                    configurable: true
+                });
+                Object.defineProperty(ReactNWithGlobalHoc.prototype, "globalStateManager", {
+                    get: function () {
+                        if (globalStateManager) {
+                            return globalStateManager;
+                        }
+                        if (this.context instanceof global_state_manager_1.default) {
+                            return this.context;
+                        }
+                        return get_global_state_manager_1.default();
+                    },
+                    enumerable: true,
+                    configurable: true
+                });
+                ReactNWithGlobalHoc.prototype.render = function () {
+                    var lowerOrderProps = __assign({}, this.props, getter(this.global, this.dispatch, this.props), setter(this.setGlobal, this.dispatch, this.props));
+                    return React.createElement(Component, __assign({}, lowerOrderProps));
+                };
+                return ReactNWithGlobalHoc;
+            }(components_1.ReactNComponent)),
+            _a.contextType = context_1.default,
+            _a.displayName = componentName(Component) + "-ReactN",
+            _a;
+    };
+}
+exports.default = _withGlobal;
+;
+
+
+/***/ }),
+
+/***/ "./node_modules/reactn/build/with-init.js":
+/*!************************************************!*\
+  !*** ./node_modules/reactn/build/with-init.js ***!
+  \************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    };
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+var React = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+var add_reducers_1 = __webpack_require__(/*! ./add-reducers */ "./node_modules/reactn/build/add-reducers.js");
+var components_1 = __webpack_require__(/*! ./components */ "./node_modules/reactn/build/components.js");
+var default_global_state_manager_1 = __webpack_require__(/*! ./default-global-state-manager */ "./node_modules/reactn/build/default-global-state-manager.js");
+function _withInit(initialGlobal, initialReducers) {
+    if (initialGlobal === void 0) { initialGlobal = null; }
+    if (initialReducers === void 0) { initialReducers = null; }
+    return function ReactNWithInit(Component, FallbackComponent) {
+        if (FallbackComponent === void 0) { FallbackComponent = null; }
+        return (function (_super) {
+            __extends(ReactNWithInitHoc, _super);
+            function ReactNWithInitHoc() {
+                var _this = _super !== null && _super.apply(this, arguments) || this;
+                _this.state = {
+                    global: !Boolean(initialGlobal),
+                    reducers: !Boolean(initialReducers),
+                };
+                return _this;
+            }
+            ReactNWithInitHoc.prototype.componentDidMount = function () {
+                var _this = this;
+                if (initialGlobal) {
+                    this.setGlobal(initialGlobal, function () {
+                        _this.setState({ global: true });
+                    });
+                }
+                if (initialReducers) {
+                    add_reducers_1.default(default_global_state_manager_1.default, initialReducers);
+                    this.setState({ reducers: true });
+                }
+            };
+            ReactNWithInitHoc.prototype.render = function () {
+                if (!this.state.global ||
+                    !this.state.reducers) {
+                    if (FallbackComponent) {
+                        return React.createElement(FallbackComponent, __assign({}, this.props));
+                    }
+                    return null;
+                }
+                return React.createElement(Component, __assign({}, this.props));
+            };
+            return ReactNWithInitHoc;
+        }(components_1.ReactNComponent));
+    };
+}
+exports.default = _withInit;
+
+
+/***/ }),
+
 /***/ "./node_modules/regenerator-runtime/runtime.js":
 /*!*****************************************************!*\
   !*** ./node_modules/regenerator-runtime/runtime.js ***!
@@ -52715,6 +56534,274 @@ module.exports = function (list, options) {
 
 /***/ }),
 
+/***/ "./node_modules/tslib/tslib.es6.js":
+/*!*****************************************!*\
+  !*** ./node_modules/tslib/tslib.es6.js ***!
+  \*****************************************/
+/*! exports provided: __extends, __assign, __rest, __decorate, __param, __metadata, __awaiter, __generator, __exportStar, __values, __read, __spread, __spreadArrays, __await, __asyncGenerator, __asyncDelegator, __asyncValues, __makeTemplateObject, __importStar, __importDefault */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__extends", function() { return __extends; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__assign", function() { return __assign; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__rest", function() { return __rest; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__decorate", function() { return __decorate; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__param", function() { return __param; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__metadata", function() { return __metadata; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__awaiter", function() { return __awaiter; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__generator", function() { return __generator; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__exportStar", function() { return __exportStar; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__values", function() { return __values; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__read", function() { return __read; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__spread", function() { return __spread; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__spreadArrays", function() { return __spreadArrays; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__await", function() { return __await; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__asyncGenerator", function() { return __asyncGenerator; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__asyncDelegator", function() { return __asyncDelegator; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__asyncValues", function() { return __asyncValues; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__makeTemplateObject", function() { return __makeTemplateObject; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__importStar", function() { return __importStar; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "__importDefault", function() { return __importDefault; });
+/*! *****************************************************************************
+Copyright (c) Microsoft Corporation. All rights reserved.
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this file except in compliance with the License. You may obtain a copy of the
+License at http://www.apache.org/licenses/LICENSE-2.0
+
+THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
+WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+MERCHANTABLITY OR NON-INFRINGEMENT.
+
+See the Apache Version 2.0 License for specific language governing permissions
+and limitations under the License.
+***************************************************************************** */
+/* global Reflect, Promise */
+
+var extendStatics = function(d, b) {
+    extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    return extendStatics(d, b);
+};
+
+function __extends(d, b) {
+    extendStatics(d, b);
+    function __() { this.constructor = d; }
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+}
+
+var __assign = function() {
+    __assign = Object.assign || function __assign(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p)) t[p] = s[p];
+        }
+        return t;
+    }
+    return __assign.apply(this, arguments);
+}
+
+function __rest(s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+}
+
+function __decorate(decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+}
+
+function __param(paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+}
+
+function __metadata(metadataKey, metadataValue) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(metadataKey, metadataValue);
+}
+
+function __awaiter(thisArg, _arguments, P, generator) {
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+}
+
+function __generator(thisArg, body) {
+    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+    function verb(n) { return function (v) { return step([n, v]); }; }
+    function step(op) {
+        if (f) throw new TypeError("Generator is already executing.");
+        while (_) try {
+            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+            if (y = 0, t) op = [op[0] & 2, t.value];
+            switch (op[0]) {
+                case 0: case 1: t = op; break;
+                case 4: _.label++; return { value: op[1], done: false };
+                case 5: _.label++; y = op[1]; op = [0]; continue;
+                case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                default:
+                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                    if (t[2]) _.ops.pop();
+                    _.trys.pop(); continue;
+            }
+            op = body.call(thisArg, _);
+        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+    }
+}
+
+function __exportStar(m, exports) {
+    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
+}
+
+function __values(o) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator], i = 0;
+    if (m) return m.call(o);
+    return {
+        next: function () {
+            if (o && i >= o.length) o = void 0;
+            return { value: o && o[i++], done: !o };
+        }
+    };
+}
+
+function __read(o, n) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator];
+    if (!m) return o;
+    var i = m.call(o), r, ar = [], e;
+    try {
+        while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+    }
+    catch (error) { e = { error: error }; }
+    finally {
+        try {
+            if (r && !r.done && (m = i["return"])) m.call(i);
+        }
+        finally { if (e) throw e.error; }
+    }
+    return ar;
+}
+
+function __spread() {
+    for (var ar = [], i = 0; i < arguments.length; i++)
+        ar = ar.concat(__read(arguments[i]));
+    return ar;
+}
+
+function __spreadArrays() {
+    for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
+    for (var r = Array(s), k = 0, i = 0; i < il; i++)
+        for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
+            r[k] = a[j];
+    return r;
+};
+
+function __await(v) {
+    return this instanceof __await ? (this.v = v, this) : new __await(v);
+}
+
+function __asyncGenerator(thisArg, _arguments, generator) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var g = generator.apply(thisArg, _arguments || []), i, q = [];
+    return i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i;
+    function verb(n) { if (g[n]) i[n] = function (v) { return new Promise(function (a, b) { q.push([n, v, a, b]) > 1 || resume(n, v); }); }; }
+    function resume(n, v) { try { step(g[n](v)); } catch (e) { settle(q[0][3], e); } }
+    function step(r) { r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r); }
+    function fulfill(value) { resume("next", value); }
+    function reject(value) { resume("throw", value); }
+    function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
+}
+
+function __asyncDelegator(o) {
+    var i, p;
+    return i = {}, verb("next"), verb("throw", function (e) { throw e; }), verb("return"), i[Symbol.iterator] = function () { return this; }, i;
+    function verb(n, f) { i[n] = o[n] ? function (v) { return (p = !p) ? { value: __await(o[n](v)), done: n === "return" } : f ? f(v) : v; } : f; }
+}
+
+function __asyncValues(o) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var m = o[Symbol.asyncIterator], i;
+    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
+    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
+    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
+}
+
+function __makeTemplateObject(cooked, raw) {
+    if (Object.defineProperty) { Object.defineProperty(cooked, "raw", { value: raw }); } else { cooked.raw = raw; }
+    return cooked;
+};
+
+function __importStar(mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result.default = mod;
+    return result;
+}
+
+function __importDefault(mod) {
+    return (mod && mod.__esModule) ? mod : { default: mod };
+}
+
+
+/***/ }),
+
+/***/ "./node_modules/use-force-update/use-force-update.js":
+/*!***********************************************************!*\
+  !*** ./node_modules/use-force-update/use-force-update.js ***!
+  \***********************************************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var __read = (this && this.__read) || function (o, n) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator];
+    if (!m) return o;
+    var i = m.call(o), r, ar = [], e;
+    try {
+        while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+    }
+    catch (error) { e = { error: error }; }
+    finally {
+        try {
+            if (r && !r.done && (m = i["return"])) m.call(i);
+        }
+        finally { if (e) throw e.error; }
+    }
+    return ar;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+var react_1 = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+function useForceUpdate() {
+    var _a = __read(react_1.useState(Object.create(null)), 2), dispatch = _a[1];
+    var memoizedDispatch = react_1.useCallback(function () {
+        dispatch(Object.create(null));
+    }, [dispatch]);
+    return memoizedDispatch;
+}
+exports.default = useForceUpdate;
+
+
+/***/ }),
+
 /***/ "./node_modules/webpack/buildin/global.js":
 /*!***********************************!*\
   !*** (webpack)/buildin/global.js ***!
@@ -52746,15 +56833,15 @@ module.exports = g;
 
 /***/ }),
 
-/***/ "./src/components/Banner/Banner.scss":
-/*!*******************************************!*\
-  !*** ./src/components/Banner/Banner.scss ***!
-  \*******************************************/
+/***/ "./src/components/question/index.scss":
+/*!********************************************!*\
+  !*** ./src/components/question/index.scss ***!
+  \********************************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
 var api = __webpack_require__(/*! ../../../node_modules/style-loader/dist/runtime/injectStylesIntoStyleTag.js */ "./node_modules/style-loader/dist/runtime/injectStylesIntoStyleTag.js");
-            var content = __webpack_require__(/*! !../../../node_modules/css-loader/dist/cjs.js!../../../node_modules/sass-loader/dist/cjs.js!./Banner.scss */ "./node_modules/css-loader/dist/cjs.js!./node_modules/sass-loader/dist/cjs.js!./src/components/Banner/Banner.scss");
+            var content = __webpack_require__(/*! !../../../node_modules/css-loader/dist/cjs.js??ref--4-1!../../../node_modules/postcss-loader/src??ref--4-2!../../../node_modules/sass-loader/dist/cjs.js??ref--4-3!./index.scss */ "./node_modules/css-loader/dist/cjs.js?!./node_modules/postcss-loader/src/index.js?!./node_modules/sass-loader/dist/cjs.js?!./src/components/question/index.scss");
 
             content = content.__esModule ? content.default : content;
 
@@ -52777,68 +56864,36 @@ module.exports = exported;
 
 /***/ }),
 
-/***/ "./src/components/Banner/Banner.tsx":
-/*!******************************************!*\
-  !*** ./src/components/Banner/Banner.tsx ***!
-  \******************************************/
+/***/ "./src/components/question/index.tsx":
+/*!*******************************************!*\
+  !*** ./src/components/question/index.tsx ***!
+  \*******************************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
-
-function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
-
-function _possibleConstructorReturn(self, call) { if (call && (_typeof(call) === "object" || typeof call === "function")) { return call; } return _assertThisInitialized(self); }
-
-function _assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
-
-function _getPrototypeOf(o) { _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return _getPrototypeOf(o); }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) _setPrototypeOf(subClass, superClass); }
-
-function _setPrototypeOf(o, p) { _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return _setPrototypeOf(o, p); }
-
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
-var React = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+var tslib_1 = __webpack_require__(/*! tslib */ "./node_modules/tslib/tslib.es6.js");
 
-__webpack_require__(/*! ./Banner.scss */ "./src/components/Banner/Banner.scss");
+var reactn_1 = tslib_1.__importStar(__webpack_require__(/*! reactn */ "./node_modules/reactn/build/index.js"));
 
-var Banner =
-/*#__PURE__*/
-function (_React$Component) {
-  _inherits(Banner, _React$Component);
+var classnames_1 = tslib_1.__importDefault(__webpack_require__(/*! classnames */ "./node_modules/classnames/index.js"));
 
-  function Banner() {
-    _classCallCheck(this, Banner);
+var styles = __webpack_require__(/*! ./index.scss */ "./src/components/question/index.scss");
 
-    return _possibleConstructorReturn(this, _getPrototypeOf(Banner).apply(this, arguments));
-  }
-
-  _createClass(Banner, [{
-    key: "render",
-    value: function render() {
-      return React.createElement("div", {
-        className: "banner"
-      }, React.createElement("span", {
-        className: "banner__text"
-      }, "Hello ", this.props.name, "!"));
-    }
-  }]);
-
-  return Banner;
-}(React.Component);
-
-exports.default = Banner;
+exports.Question = function (props) {
+  var qaList = reactn_1.useGlobal()[0];
+  var question = qaList[props.show];
+  var wrapperClassNames = classnames_1.default(styles.question, styles.active);
+  return reactn_1.default.createElement("div", {
+    className: wrapperClassNames
+  }, console.log(question), reactn_1.default.createElement("h4", null, props.show, "\u756A\u76EE\u306E\u8CEA\u554F"), reactn_1.default.createElement("p", null, question));
+};
 
 /***/ }),
 
@@ -52856,33 +56911,75 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
+var tslib_1 = __webpack_require__(/*! tslib */ "./node_modules/tslib/tslib.es6.js");
+
 __webpack_require__(/*! core-js */ "./node_modules/core-js/index.js");
 
 __webpack_require__(/*! regenerator-runtime/runtime */ "./node_modules/regenerator-runtime/runtime.js");
 
-var React = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+var reactn_1 = tslib_1.__importStar(__webpack_require__(/*! reactn */ "./node_modules/reactn/build/index.js"));
 
-var ReactDOM = __webpack_require__(/*! react-dom */ "./node_modules/react-dom/index.js");
+var ReactDOM = tslib_1.__importStar(__webpack_require__(/*! react-dom */ "./node_modules/react-dom/index.js"));
 
-var Banner_1 = __webpack_require__(/*! ./components/Banner/Banner */ "./src/components/Banner/Banner.tsx");
+var axios_1 = tslib_1.__importDefault(__webpack_require__(/*! axios */ "./node_modules/axios/index.js"));
 
-__webpack_require__(/*! ./styles/global.scss */ "./src/styles/global.scss");
+var csv2json_1 = __webpack_require__(/*! ./util/csv2json */ "./src/util/csv2json.ts");
 
-ReactDOM.render(React.createElement("div", null, React.createElement(Banner_1.default, {
-  name: "Max"
-})), document.getElementById("app"));
+var question_1 = __webpack_require__(/*! ./components/question */ "./src/components/question/index.tsx");
+
+var styles = __webpack_require__(/*! ./styles/app.scss */ "./src/styles/app.scss");
+
+var Q_URL = "./q.csv";
+
+var App = function App() {
+  var _a = reactn_1.useGlobal(),
+      qaList = _a[0],
+      setQaList = _a[1];
+
+  var _b = reactn_1.useState(false),
+      initialized = _b[0],
+      setInitialized = _b[1];
+
+  reactn_1.useEffect(function () {
+    if (initialized) {
+      document.title = "initialized";
+    }
+  }, [initialized]); // load data
+
+  reactn_1.useEffect(function () {
+    axios_1.default.get(Q_URL).then(function (res) {
+      setQaList(csv2json_1.csv2json(res.data));
+      setInitialized(true);
+    });
+  }, [qaList]);
+  var renderQ = Object.values(qaList).map(function (q, index) {
+    if (index === 0) return null;
+    return reactn_1.default.createElement("li", {
+      key: q
+    }, q[2]);
+  });
+  var showNumber = 1;
+  return reactn_1.default.createElement("div", {
+    className: styles.app
+  }, reactn_1.default.createElement("h5", null, "Questions"), reactn_1.default.createElement("ul", null, renderQ), reactn_1.default.createElement("hr", null), reactn_1.default.createElement(question_1.Question, {
+    show: showNumber
+  }));
+}; //////
+
+
+ReactDOM.render(reactn_1.default.createElement(reactn_1.default.Fragment, null, reactn_1.default.createElement(App, null)), document.getElementById("app"));
 
 /***/ }),
 
-/***/ "./src/styles/global.scss":
-/*!********************************!*\
-  !*** ./src/styles/global.scss ***!
-  \********************************/
+/***/ "./src/styles/app.scss":
+/*!*****************************!*\
+  !*** ./src/styles/app.scss ***!
+  \*****************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
 var api = __webpack_require__(/*! ../../node_modules/style-loader/dist/runtime/injectStylesIntoStyleTag.js */ "./node_modules/style-loader/dist/runtime/injectStylesIntoStyleTag.js");
-            var content = __webpack_require__(/*! !../../node_modules/css-loader/dist/cjs.js!../../node_modules/sass-loader/dist/cjs.js!./global.scss */ "./node_modules/css-loader/dist/cjs.js!./node_modules/sass-loader/dist/cjs.js!./src/styles/global.scss");
+            var content = __webpack_require__(/*! !../../node_modules/css-loader/dist/cjs.js??ref--4-1!../../node_modules/postcss-loader/src??ref--4-2!../../node_modules/sass-loader/dist/cjs.js??ref--4-3!./app.scss */ "./node_modules/css-loader/dist/cjs.js?!./node_modules/postcss-loader/src/index.js?!./node_modules/sass-loader/dist/cjs.js?!./src/styles/app.scss");
 
             content = content.__esModule ? content.default : content;
 
@@ -52902,6 +56999,33 @@ var exported = content.locals ? content.locals : {};
 
 
 module.exports = exported;
+
+/***/ }),
+
+/***/ "./src/util/csv2json.ts":
+/*!******************************!*\
+  !*** ./src/util/csv2json.ts ***!
+  \******************************/
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+exports.csv2json = function (str) {
+  var delimiter = ",";
+  return str.split("\n").reduce(function (table, row) {
+    if (!table) return;
+    table.push(row.split(delimiter).map(function (d) {
+      return d.trim();
+    }));
+    return table;
+  }, []);
+};
 
 /***/ })
 

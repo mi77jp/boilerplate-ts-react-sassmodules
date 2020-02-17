@@ -46,7 +46,8 @@
     "webpack-cli": "^3.3.10"
   },
   "scripts": {
-    "dev": "webpack-dev-server"
+    "dev": "webpack-dev-server",
+    "build": "webpack"
   },
   "browserslist": [
     "> 1%",
