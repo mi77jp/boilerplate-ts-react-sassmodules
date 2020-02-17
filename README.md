@@ -2,12 +2,11 @@
 
 SASS modules (CSS-modules with sass)を typescript + reactの環境で使用する。
 
-***
+
 DEMO: <https://mi77jp.github.io/boilerplate-ts-react-sassmodules/dist/>
 
 ![xxxx](https://user-images.githubusercontent.com/1215350/74651673-afeb5a00-51c7-11ea-9904-df0f01f60270.png)
 
-***
 
 ## つかいかた
 
