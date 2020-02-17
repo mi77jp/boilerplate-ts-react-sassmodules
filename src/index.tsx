@@ -4,44 +4,51 @@ import React, { useState, useEffect, useGlobal } from 'reactn';
 import * as ReactDOM from "react-dom";
 import axios from 'axios';
 import { csv2json } from './util/csv2json';
-//import App from './app';
+import { Question } from './components/question';
+const styles = require('./styles/app.scss');
 
 const Q_URL = "./data/q.csv";
-//const A_URL = "./data/a.csv";
 
 const App: any = () => {
 
+  const [qaList, setQaList] = useGlobal<any>();
+  const [initialized, setInitialized] = useState<any>(false);
+
+  useEffect(() => {
+    if ( initialized ) {
+      document.title = `initialized`;
+    }
+  }, [initialized]);
+
   // load data
-  const [qa, setQa] = useGlobal<any>();
   useEffect( () => {
     axios.get(Q_URL).then((res: any) => {
-      setQa( csv2json(res.data) );
-      setTitle('done');
+      setQaList( csv2json(res.data) );
+      setInitialized(true);
     });
-  }, []);
+  }, [qaList]);
 
-  const [title, setTitle] = useState<any>('page');
-  useEffect(() => {
-    if (title) {
-      document.title = `App "${ title }"`;
-    } else {
-      document.title = 'App';
-    }
-  }, [title]);
 
-  const renderQa = Object.values(qa).map( (qa: any) => {
+  const renderQ = Object.values(qaList).map( (q: any, index: number) => {
+    if (index === 0) return null;
     return (
-      <li key={qa}>
-        { console.log(qa) }
-        { qa[2] }
+      <li key={q}>
+        { q[2] }
       </li>
     );
   });
 
+  const showNumber = 1;
+
   return (
-    <ul>
-      { renderQa }
-    </ul>
+    <div className={ styles.app }>
+      <h5>Questions</h5>
+      <ul>
+        { renderQ }
+      </ul>
+      <hr />
+      <Question show={showNumber} />
+    </div>
   );
 };
 

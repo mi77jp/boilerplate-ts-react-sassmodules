@@ -1,9 +1,12 @@
 @import "../../styles/colors";
 
-.button {
+.question {
   background-color: $moccasin;
   box-sizing: border-box;
-  padding: 1rem;
+  padding: 2rem;
   text-align: center;
-  color: $dark-red;
+}
+
+.active {
+  background-color: rgb(134, 240, 211);
 }

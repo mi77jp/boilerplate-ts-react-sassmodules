@@ -3,4 +3,15 @@
   -moz-osx-font-smoothing: grayscale;
   font-size: 16px;
   margin: 30px;
+
+  hr {
+    border: 1px solid rgba(0,0,0,0.1);
+    border-width: 1px 0 0 0;
+    height: 1px;
+    margin: 24px 0;
+  }
+
+  li {
+    margin: .5em;
+  }
 }
