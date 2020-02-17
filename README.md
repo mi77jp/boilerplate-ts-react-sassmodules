@@ -76,11 +76,11 @@ module.exports = {
 
 ### 2. CSS設定
 
-#### sass変数の例
+#### 2-1.sass変数の例
 sass変数を書く、以後sass側でimportして使用する。
 <https://github.com/mi77jp/boilerplate-ts-react-sassmodules/blob/master/src/styles/colors.scss>
 
-#### グローバルなスタイル
+#### 2-2. グローバルなスタイル
 
 <https://github.com/mi77jp/boilerplate-ts-react-sassmodules/blob/master/src/styles/app.scss>   
 アプリ全体に適用したい style を `.app` の下に書く。（`.app`は仮の名前なのでなんでもよい。） もしもここに `.app` でなく、 `<hr>,<a>,<h3>` などのセレクターを直接上書きする指定を書いてしまうとグローバル汚染になるので避ける。
@@ -92,7 +92,7 @@ sass変数を書く、以後sass側でimportして使用する。
 
 <https://github.com/mi77jp/boilerplate-ts-react-sassmodules/blob/master/src/index.tsx#L44>
 
-#### コンポーネント単位のスタイル
+#### 2-3. コンポーネント単位のスタイル
 
 <https://github.com/mi77jp/boilerplate-ts-react-sassmodules/blob/master/src/components/question/index.scss>
 個別のコンポーネント用のスタイル。class名はこのスコープのみで有効になり、グローバルに影響を与えることがないため、BEMなどのCSSフレームワークを導入する必要はない。後で変えるのも楽。実行時のパフォーマンスを上げたかったら、あまりネストしないようにかくとよい。
