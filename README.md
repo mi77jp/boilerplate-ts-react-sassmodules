@@ -27,11 +27,16 @@ $ yarn run build
 
 ## CSS関係のライブラリ
 
+CSS関係のライブラリは以下のみ。
+
 - postcss-loader
 - css-loader
 - sass-loader
 - style-loader
 - autoprefixer
+
+その他の package.json で指定しているライブラリは主にTypeScript/React用。
+<https://github.com/mi77jp/boilerplate-ts-react-sassmodules/blob/master/package.json>
 
 ## ポイント解説
 
