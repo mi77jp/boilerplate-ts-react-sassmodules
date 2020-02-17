@@ -83,12 +83,13 @@ sass変数を書く、以後sass側でimportして使用する。
 #### グローバルなスタイル
 
 <https://github.com/mi77jp/boilerplate-ts-react-sassmodules/blob/master/src/styles/app.scss>   
-アプリ全体に適用したい style を `app` の下に書く。ここに `<hr>,<a>,<h3>` などのセレクターを上書きする指定を書いてしまうとグローバル汚染になるので注意する。
+アプリ全体に適用したい style を `.app` の下に書く。（`.app`は仮の名前なのでなんでもよい。） もしもここに `.app` でなく、 `<hr>,<a>,<h3>` などのセレクターを直接上書きする指定を書いてしまうとグローバル汚染になるので避ける。
 
 <https://github.com/mi77jp/boilerplate-ts-react-sassmodules/blob/master/src/index.tsx#L8>  
 エントリーポイントのtsxにsassを読み込む
-※ SASSに関しては型の問題から開放されたいので、require を使う。ちょっとキモいけど
- `<div className={ styles.app }>` みたいに class属性を設定
+※ SASSに関しては型の問題から開放されたいので、ちょっとキモいけど `require` を使う。
+ `<div className={ styles.app }>` ← みたいに class属性を設定
+
 <https://github.com/mi77jp/boilerplate-ts-react-sassmodules/blob/master/src/index.tsx#L44>
 
 #### コンポーネント単位のスタイル
