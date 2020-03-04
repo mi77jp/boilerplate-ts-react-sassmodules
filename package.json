@@ -16,6 +16,7 @@
     "postcss-loader": "^3.0.0",
     "react": "^16.12.0",
     "react-dom": "^16.12.0",
+    "react-hook-form": "^4.10.1",
     "react-router-dom": "^5.1.2",
     "reactn": "^2.2.5",
     "regenerator-runtime": "^0.13.3",
